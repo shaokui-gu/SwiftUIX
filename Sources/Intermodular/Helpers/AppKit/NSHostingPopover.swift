@@ -8,65 +8,111 @@ import AppKit
 import Swift
 import SwiftUI
 
-open class NSHostingPopover<Content: View>: NSPopover {
-    var presentationManager: PresentationManager!
-    
-    var _contentViewController: NSHostingController<ContentWrapper> {
-        contentViewController as! NSHostingController<ContentWrapper>
+/// An AppKit popover that hosts SwiftUI view hierarchy.
+open class NSHostingPopover<Content: View>: NSPopover, NSPopoverDelegate {
+    private var _contentViewController: CocoaHostingController<ContentWrapper> {
+        if let contentViewController = contentViewController {
+            return contentViewController as! CocoaHostingController<ContentWrapper>
+        } else {
+            let contentViewController = CocoaHostingController<ContentWrapper>(mainView: .init(parentBox: .init(nil), content: rootView))
+            
+            self.contentViewController = contentViewController
+            
+            return contentViewController
+        }
     }
     
     public var rootView: Content {
-        get {
-            _contentViewController.rootView.content
-        } set {
-            _contentViewController.rootView = .init(content: newValue, owner: self)
-            
-            contentSize = _contentViewController.sizeThatFits(in: Screen.main.bounds.size)
+        didSet {
+            _contentViewController.mainView.content = rootView
+            _contentViewController.view.layout()
         }
     }
     
     public init(rootView: Content) {
+        self.rootView = rootView
+        
         super.init()
         
-        presentationManager = .init(self)
-
-        contentViewController = NSHostingController(rootView: ContentWrapper(content: rootView, owner: self))
-        contentSize = _contentViewController.sizeThatFits(in: Screen.main.bounds.size)
+        _contentViewController.parentPopover = self
+        
+        self.animates = true
     }
     
     public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
+    override open func show(
+        relativeTo positioningRect: NSRect,
+        of positioningView: NSView,
+        preferredEdge: NSRectEdge
+    ) {
+        _contentViewController.mainView.parentBox.wrappedValue = self
+        
+        let _animates = self.animates
+        
+        if _areAnimationsDisabledGlobally {
+            animates = false
+        }
+        
+        defer {
+            if _areAnimationsDisabledGlobally {
+                DispatchQueue.main.async {
+                    self.animates = _animates
+                }
+            }
+        }
+        
+        super.show(
+            relativeTo: positioningRect,
+            of: positioningView,
+            preferredEdge: preferredEdge
+        )
+    }
+    
+    // MARK: - NSPopoverDelegate -
+    
+    public func popoverDidClose(_ notification: Notification) {
+        contentViewController = nil
+    }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension NSHostingPopover {
-    struct ContentWrapper: View {
-        let content: Content
+    private struct ContentWrapper: View {
+        var parentBox: ObservableWeakReferenceBox<NSHostingPopover>
         
-        weak var owner: NSHostingPopover?
+        var content: Content
         
         var body: some View {
-            owner.ifSome { owner in
+            if parentBox.wrappedValue != nil {
                 content
-                    .environment(\.presentationManager, owner.presentationManager)
+                    .environment(\.presentationManager, PresentationManager(parentBox))
+                    .onChangeOfFrame { _ in
+                        parentBox.wrappedValue?._contentViewController.view.layout()
+                    }
             }
         }
     }
     
-    class PresentationManager: SwiftUIX.PresentationManager {
-        private unowned let popover: NSHostingPopover
+    private struct PresentationManager: SwiftUIX.PresentationManager {
+        public let popoverBox: ObservableWeakReferenceBox<NSHostingPopover>
         
         public var isPresented: Bool {
-            popover.isShown
+            popoverBox.wrappedValue?.isShown ?? false
         }
         
-        public init(_ popover: NSHostingPopover)  {
-            self.popover = popover
+        public init(_ popoverBox: ObservableWeakReferenceBox<NSHostingPopover>)  {
+            self.popoverBox = popoverBox
         }
         
         public func dismiss() {
+            guard let popover = popoverBox.wrappedValue else {
+                return assertionFailure()
+            }
+            
             popover.performClose(nil)
         }
     }

@@ -9,9 +9,12 @@ import SwiftUI
 ///
 /// **Do not** reference this type directly.
 public enum _RelativePaddingAmount: CaseIterable, Hashable {
+    case extraSmall
     case small
     case regular
     case large
+    case extraLarge
+    case extraExtraLarge
 }
 
 extension View {
@@ -39,6 +42,14 @@ extension View {
         switch amount {
             case .none:
                 padding(edges)
+            case .some(.extraSmall):
+                #if os(iOS)
+                padding(edges, 4)
+                #elseif os(watchOS)
+                padding(edges, 2)
+                #else
+                padding(edges, 4)
+                #endif
             case .some(.small):
                 #if os(iOS)
                 padding(edges, 8)
@@ -51,12 +62,46 @@ extension View {
                 padding(edges)
             case .some(.large):
                 padding(edges).padding(edges)
+            case .some(.extraLarge):
+                padding(edges).padding(edges).padding(edges)
+            case .some(.extraExtraLarge):
+                padding(edges).padding(edges).padding(edges).padding(edges)
         }
     }
     
     public func padding(
-        _ amount: _RelativePaddingAmount
+        _ amount: _RelativePaddingAmount?
     ) -> some View {
         padding(.all, amount)
+    }
+    
+    public func padding(
+        horizontal: _RelativePaddingAmount,
+        vertical: _RelativePaddingAmount
+    ) -> some View {
+        padding(.horizontal, horizontal).padding(.vertical, vertical)
+    }
+}
+
+// MARK: - Helpers
+
+@available(iOS 15.0, macOS 10.15, watchOS 9.0, *)
+@available(tvOS, unavailable)
+extension ControlSize {
+    public func _mapRankToRelativePadding() -> _RelativePaddingAmount {
+        switch self {
+            case .mini:
+                return .extraSmall
+            case .small:
+                return .small
+            case .regular:
+                return .regular
+            case .large:
+                return .large
+            default:
+                assertionFailure()
+                
+                return .regular
+        }
     }
 }

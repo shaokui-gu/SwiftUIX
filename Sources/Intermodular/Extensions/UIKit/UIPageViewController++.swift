@@ -2,7 +2,7 @@
 // Copyright (c) Vatsal Manot
 //
 
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 
 import Swift
 import UIKit
@@ -21,7 +21,7 @@ extension UIPageViewController {
             #if os(tvOS)
             return false
             #else
-            return gestureRecognizers.filter({ $0 is UIScreenEdgePanGestureRecognizer }).first?.isEnabled ?? true
+            return gestureRecognizers.first(where: { $0 is UIScreenEdgePanGestureRecognizer })?.isEnabled ?? true
             #endif
         } set {
             #if !os(tvOS)
@@ -32,7 +32,7 @@ extension UIPageViewController {
     
     var isTapGestureEnabled: Bool {
         get {
-            gestureRecognizers.filter({ $0 is UITapGestureRecognizer }).first?.isEnabled ?? true
+            gestureRecognizers.first(where: { $0 is UITapGestureRecognizer })?.isEnabled ?? true
         } set {
             gestureRecognizers.filter({ $0 is UITapGestureRecognizer }).forEach({ $0.isEnabled = newValue })
         }
@@ -47,7 +47,7 @@ extension UIPageViewController {
     }
     
     var pageControl: UIPageControl? {
-        view.findSubview(ofKind: UIPageControl.self)
+        view._SwiftUIX_findSubview(ofKind: UIPageControl.self)
     }
 }
 

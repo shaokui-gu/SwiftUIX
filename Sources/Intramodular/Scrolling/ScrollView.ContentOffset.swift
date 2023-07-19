@@ -5,18 +5,47 @@
 import SwiftUI
 import Swift
 
-extension ScrollView {
-    public struct ContentOffset {
-        public enum Origin {
-            case topLeading
-            case bottomTrailing
-        }
-        
-        fileprivate var containerBounds: CGRect
-        fileprivate var contentSize: CGSize
-        fileprivate var contentInsets: EdgeInsets
-        fileprivate var contentOffset: CGPoint
+public struct ScrollViewContentOffset: Hashable {
+    public enum Origin {
+        case topLeading
+        case bottomTrailing
     }
+    
+    var containerBounds: CGRect
+    var contentSize: CGSize
+    var contentInsets: EdgeInsets
+    var contentOffset: CGPoint
+    
+    public init(
+        containerBounds: CGRect,
+        contentSize: CGSize,
+        contentInsets: EdgeInsets,
+        contentOffset: CGPoint
+    ) {
+        self.containerBounds = containerBounds
+        self.contentSize = contentSize
+        self.contentInsets = contentInsets
+        self.contentOffset = contentOffset
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(containerBounds.origin.x)
+        hasher.combine(containerBounds.origin.y)
+        hasher.combine(containerBounds.width)
+        hasher.combine(containerBounds.height)
+        hasher.combine(contentSize.width)
+        hasher.combine(contentSize.height)
+        hasher.combine(contentInsets.top)
+        hasher.combine(contentInsets.leading)
+        hasher.combine(contentInsets.bottom)
+        hasher.combine(contentInsets.trailing)
+        hasher.combine(contentOffset.x)
+        hasher.combine(contentOffset.y)
+    }
+}
+
+extension ScrollView {
+    public typealias ContentOffset = ScrollViewContentOffset
 }
 
 extension ScrollView.ContentOffset {
@@ -59,10 +88,14 @@ extension ScrollView.ContentOffset {
         }
     }
     
-    public func relativeValue(from origin: Origin) -> CGPoint {
+    public func fractionalValue(from origin: Origin) -> CGPoint {
         return .init(
-            x: value(from: origin).x / (contentSize.width - containerBounds.width),
-            y: value(from: origin).y / (contentSize.height - containerBounds.height)
+            x: value(from: origin).x == 0
+                ? 0
+                : value(from: origin).x / (contentSize.width - containerBounds.width),
+            y: value(from: origin).y == 0
+                ? 0
+                : value(from: origin).y / (contentSize.height - containerBounds.height)
         )
     }
     
@@ -83,7 +116,7 @@ extension ScrollView.ContentOffset {
             case .trailing:
                 offset.x = contentSize.width - containerBounds.size.width
             default:
-                fatalError()
+                assertionFailure()
         }
         
         switch alignment.vertical {
@@ -94,14 +127,14 @@ extension ScrollView.ContentOffset {
             case .bottom:
                 offset.y = max(-contentInsets.top, contentSize.height - (containerBounds.size.height - contentInsets.bottom))
             default:
-                fatalError()
+                assertionFailure()
         }
         
         return offset
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
 
@@ -136,7 +169,7 @@ extension UIScrollView {
         )
     }
     
-    func setContentOffset<Content: View>(_ offset: ScrollView<Content>.ContentOffset, animated: Bool) {
+    func setContentOffset(_ offset: ScrollViewContentOffset, animated: Bool) {
         setContentOffset(offset.contentOffset, animated: animated)
     }
     

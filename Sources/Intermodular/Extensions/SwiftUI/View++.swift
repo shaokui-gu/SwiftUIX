@@ -5,6 +5,8 @@
 import Swift
 import SwiftUI
 
+// MARK: - View.then
+
 extension View {
     @inlinable
     public func then(_ body: (inout Self) -> Void) -> Self {
@@ -14,7 +16,11 @@ extension View {
         
         return result
     }
-    
+}
+
+// MARK: - View.eraseToAnyView
+
+extension View {
     /// Returns a type-erased version of `self`.
     @inlinable
     public func eraseToAnyView() -> AnyView {
@@ -22,7 +28,7 @@ extension View {
     }
 }
 
-// MARK: View.background
+// MARK: - View.background
 
 extension View {
     @_disfavoredOverload
@@ -58,7 +64,17 @@ extension View {
     ) -> some View {
         background(fill.edgesIgnoringSafeArea(.all), alignment: alignment)
     }
+    
+    @inlinable
+    public func backgroundFill<BackgroundFill: View>(
+        alignment: Alignment = .center,
+        @ViewBuilder _ fill: () -> BackgroundFill
+    ) -> some View {
+        backgroundFill(fill())
+    }
 }
+
+// MARK: - View.overlay
 
 extension View {
     @_disfavoredOverload
@@ -71,12 +87,14 @@ extension View {
     }
 }
 
-// MARK: View.hidden
+// MARK: - View.hidden
 
 extension View {
+    /// Hides this view conditionally.
+    @_disfavoredOverload
     @inlinable
     public func hidden(_ isHidden: Bool) -> some View {
-        Group {
+        PassthroughView {
             if isHidden {
                 hidden()
             } else {
@@ -110,13 +128,45 @@ extension View {
     }
 }
 
-// MARK: View.padding
+// MARK: - View.transition
 
 extension View {
-    /// A view that pads this view inside the specified edge insets with a system-calculated amount of padding and a color.
-    @_disfavoredOverload
-    @inlinable
-    public func padding(_ color: Color) -> some View {
-        padding().background(color)
+    /// Associates a transition with the view.
+    public func transition(_ makeTransition: () -> AnyTransition) -> some View {
+        self.transition(makeTransition())
+    }
+    
+    public func asymmetricTransition(
+        insertion: AnyTransition
+    ) -> some View {
+        transition(.asymmetric(insertion: insertion, removal: .identity))
+    }
+    
+    public func asymmetricTransition(
+        removal: AnyTransition
+    ) -> some View {
+        transition(.asymmetric(insertion: .identity, removal: removal))
+    }
+    
+    /// Associates an insertion transition and a removal transition with the view.
+    public func asymmetricTransition(
+        insertion: AnyTransition,
+        removal: AnyTransition
+    ) -> some View {
+        transition(.asymmetric(insertion: insertion, removal: removal))
+    }
+}
+
+// MARK: - Debugging
+
+extension View {
+    public func _printingChanges() -> Self {
+        if #available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *) {
+            Self._printChanges()
+
+            return self
+        } else {
+            return self
+        }
     }
 }

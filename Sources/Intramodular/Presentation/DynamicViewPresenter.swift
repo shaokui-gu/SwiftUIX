@@ -7,7 +7,7 @@ import Swift
 import SwiftUI
 
 /// A type that manages view presentation.
-public protocol DynamicViewPresenter: DynamicViewPresentable, EnvironmentProvider {
+public protocol DynamicViewPresenter: DynamicViewPresentable {
     #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
     /// The presentation coordinator for this presenter.
     var _cocoaPresentationCoordinator: CocoaPresentationCoordinator { get }
@@ -24,12 +24,9 @@ public protocol DynamicViewPresenter: DynamicViewPresentable, EnvironmentProvide
     
     @discardableResult
     func dismissSelf(withAnimation _: Animation?) -> Future<Bool, Never>
-    
-    @discardableResult
-    func dismissSelf() -> Future<Bool, Never>
 }
 
-// MARK: - Implementation -
+// MARK: - Implementation
 
 extension DynamicViewPresenter {
     /// A reference to the top-most presented item.
@@ -64,15 +61,23 @@ extension DynamicViewPresenter {
     }
 }
 
-// MARK: - Extensions -
+// MARK: - Extensions
 
 extension DynamicViewPresenter {
     public func present(_ modal: AnyModalPresentation) {
         present(modal, completion: { })
     }
     
+    public func present(_ view: AnyPresentationView) {
+        present(AnyModalPresentation(content: view), completion: { })
+    }
+    
     public func presentOnTop(_ modal: AnyModalPresentation) {
         topmostPresenter.present(modal, completion: { })
+    }
+    
+    public func presentOnTop(_ view: AnyPresentationView) {
+        topmostPresenter.present(AnyModalPresentation(content: view), completion: { })
     }
     
     public func present<Content: View>(@ViewBuilder content: () -> Content) {
@@ -81,7 +86,7 @@ extension DynamicViewPresenter {
     
     public func present<V: View>(
         _ view: V,
-        named name: ViewName? = nil,
+        named name: AnyHashable? = nil,
         onDismiss: @escaping () -> Void = { },
         presentationStyle: ModalPresentationStyle? = nil,
         completion: @escaping () -> Void = { }
@@ -100,7 +105,7 @@ extension DynamicViewPresenter {
     
     public func presentOnTop<V: View>(
         _ view: V,
-        named name: ViewName? = nil,
+        named name: AnyHashable? = nil,
         onDismiss: @escaping () -> Void = { },
         presentationStyle: ModalPresentationStyle? = nil,
         completion: @escaping () -> () = { }
@@ -137,7 +142,7 @@ extension DynamicViewPresenter {
     }
     
     @discardableResult
-    public func dismissView(named name: ViewName) -> Future<Bool, Never> {
+    public func dismissView(named name: AnyHashable) -> Future<Bool, Never> {
         var presenter: DynamicViewPresenter? = self.presenter ?? self
         
         while let presented = presenter {
@@ -157,7 +162,7 @@ extension DynamicViewPresenter {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 private struct DynamicViewPresenterEnvironmentKey: EnvironmentKey {
     static let defaultValue: DynamicViewPresenter? = nil
@@ -177,7 +182,7 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Conformances -
+// MARK: - Conformances
 
 #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
 
@@ -344,11 +349,11 @@ extension NSViewController: DynamicViewPresenter {
         }
         
         return Future { attemptToFulfill in
-            if let presentingViewController = self.presentingViewController {
-                presentingViewController.dismiss(self)
+            if let presenter = self.presenter {
+                presenter.dismiss()
                 
                 attemptToFulfill(.success(true))
-            } else {
+            }else {
                 attemptToFulfill(.success(false))
             }
         }
@@ -369,8 +374,16 @@ extension NSWindow: DynamicViewPresenter {
     }
     
     @discardableResult
-    public func dismiss(withAnimation animation: Animation?) -> Future<Bool, Never> {
-        contentViewController?.dismiss(withAnimation: animation) ?? .init({ $0(.success(false)) })
+    public func dismiss(
+        withAnimation animation: Animation?
+    ) -> Future<Bool, Never> {
+        if NSStringFromClass(type(of: self)).hasSuffix("SheetPresentationWindow") {
+            self.close()
+            
+            return .init({ $0(.success(true)) })
+        } else {
+            return contentViewController?.dismiss(withAnimation: animation) ?? .init({ $0(.success(false)) })
+        }
     }
     
     @discardableResult

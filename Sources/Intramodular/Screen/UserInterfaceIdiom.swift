@@ -10,6 +10,7 @@ public enum UserInterfaceIdiom: Hashable {
     case mac
     case phone
     case pad
+    case reality
     case tv
     case watch
     
@@ -26,12 +27,14 @@ public enum UserInterfaceIdiom: Hashable {
                 return .phone
             case .pad:
                 return .pad
+            #if swift(>=5.9)
+            case .reality:
+                return .reality
+            #endif
             case .tv:
                 return .tv
-            #if swift(>=5.3)
             case .mac:
                 return .mac
-            #endif
             case .unspecified:
                 return .unspecified
                 
@@ -46,7 +49,29 @@ public enum UserInterfaceIdiom: Hashable {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - API
+
+extension View {
+    /// Hides this view on the given user interface idiom.
+    public func hidden(on idiom: UserInterfaceIdiom) -> some View {
+        withEnvironmentValue(\.userInterfaceIdiom) { userInterfaceIdiom in
+            hidden(idiom == userInterfaceIdiom)
+        }
+    }
+
+    /// Remove this view on the given user interface idiom.
+    public func remove(on idiom: UserInterfaceIdiom) -> some View {
+        withEnvironmentValue(\.userInterfaceIdiom) { userInterfaceIdiom in
+            if idiom != userInterfaceIdiom {
+                self
+            } else {
+                EmptyView()
+            }
+        }
+    }
+}
+
+// MARK: - Auxiliary
 
 extension EnvironmentValues {
     public var userInterfaceIdiom: UserInterfaceIdiom {

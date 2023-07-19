@@ -2,8 +2,11 @@
 // Copyright (c) Vatsal Manot
 //
 
+import Combine
 import Swift
 import SwiftUI
+
+#if (os(iOS) && canImport(CoreTelephony)) || os(macOS) || os(tvOS) || os(watchOS) || targetEnvironment(macCatalyst)
 
 /// A representation of the device's screen.
 public class Screen: ObservableObject {
@@ -53,7 +56,7 @@ public class Screen: ObservableObject {
     }
 }
 
-// MARK: - Extensions -
+// MARK: - Extensions
 
 extension Screen {
     public var size: CGSize {
@@ -89,7 +92,7 @@ extension Screen {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension EnvironmentValues {
     public var screen: Screen {
@@ -100,3 +103,5 @@ extension EnvironmentValues {
         }
     }
 }
+
+#endif

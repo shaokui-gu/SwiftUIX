@@ -6,7 +6,6 @@ import Swift
 import SwiftUI
 
 #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-
 extension Color {
     private func toUIColor0() -> UIColor? {
         switch self {
@@ -74,14 +73,14 @@ extension Color {
     
     private func toUIColor2() -> UIColor? {
         let children = Mirror(reflecting: self).children
-        let _provider = children.filter { $0.label == "provider" }.first
+        let _provider = children.first { $0.label == "provider" }
         
         guard let provider = _provider?.value else {
             return nil
         }
         
         let providerChildren = Mirror(reflecting: provider).children
-        let _base = providerChildren.filter { $0.label == "base" }.first
+        let _base = providerChildren.first { $0.label == "base" }
         
         guard let base = _base?.value else {
             return nil
@@ -149,8 +148,10 @@ extension Color {
                 return nil
         }
     }
-    
-    public func toUIColor() -> UIColor? {
+
+    private static var appKitOrUIKitColorConversionCache: [Color: AppKitOrUIKitColor] = [:]
+
+    public func _toUIColor() -> UIColor? {
         #if os(iOS)
         if #available(iOS 14.0, *) {
             return UIColor(self)
@@ -167,6 +168,54 @@ extension Color {
             ?? toUIColor2()
             ?? toUIColor3()
     }
-}
 
+    public func toUIColor(colorScheme: ColorScheme? = nil) -> AppKitOrUIKitColor? {
+        let result: AppKitOrUIKitColor
+        
+        if let cachedResult = Self.appKitOrUIKitColorConversionCache[self] {
+            result = cachedResult
+        } else {
+            guard let _result = _toUIColor() else {
+                return nil
+            }
+            
+            Self.appKitOrUIKitColorConversionCache[self] = _result
+
+            result = _result
+        }
+        
+        if let colorScheme {
+            switch colorScheme {
+                case .light:
+                    return result.resolvedColor(with: .init(userInterfaceStyle: .dark))
+                case .dark:
+                    return result.resolvedColor(with: .init(userInterfaceStyle: .dark))
+                @unknown default:
+                    assertionFailure()
+                    
+                    return result
+            }
+        } else {
+            return result
+        }
+    }
+}
+#endif
+
+#if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
+extension Color {
+    public func toAppKitOrUIKitColor() -> AppKitOrUIKitColor? {
+        #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+        return toUIColor()
+        #elseif os(macOS)
+        if #available(macOS 11.0, *) {
+            return NSColor(self)
+        } else {
+            assertionFailure("unimplemented")
+
+            return nil
+        }
+        #endif
+    }
+}
 #endif

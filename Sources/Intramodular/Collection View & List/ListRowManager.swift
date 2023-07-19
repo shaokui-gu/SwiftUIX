@@ -7,15 +7,33 @@ import SwiftUI
 
 protocol _CellProxyBase {
     var globalFrame: CGRect { get }
-    
-    func invalidateLayout()
+        
+    func invalidateLayout(with context: CellProxy.InvalidationContext)
+    func select()
+    func deselect()
 }
 
 public struct CellProxy {
+    public struct InvalidationContext {
+        public let newPreferredContentSize: OptionalDimensions?
+        
+        public init(newPreferredContentSize: OptionalDimensions? = nil) {
+            self.newPreferredContentSize = newPreferredContentSize
+        }
+    }
+    
     let base: _CellProxyBase?
     
-    public func invalidateLayout() {
-        base?.invalidateLayout()
+    public func invalidateLayout(with context: InvalidationContext = .init()) {
+        base?.invalidateLayout(with: context)
+    }
+    
+    public func select() {
+        base?.select()
+    }
+    
+    public func deselect() {
+        base?.deselect()
     }
 }
 
@@ -35,7 +53,7 @@ public struct CellReader<Content: View>: View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 struct CellProxyEnvironmentKey: EnvironmentKey {
     static let defaultValue: CellProxy? = nil

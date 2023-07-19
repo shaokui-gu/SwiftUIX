@@ -4,7 +4,7 @@
 
 import SwiftUI
 
-#if os(iOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || targetEnvironment(macCatalyst)
 
 @usableFromInline
 struct EdgeSwipeGestureOverlay: UIViewRepresentable {
@@ -63,7 +63,7 @@ struct EdgeSwipeGestureOverlay: UIViewRepresentable {
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension View {
     @inlinable

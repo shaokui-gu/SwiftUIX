@@ -7,7 +7,7 @@ import SwiftUI
 
 extension Text {
     public static func concatenate(
-        @ArrayBuilder<Text> _ items: () -> [Text]
+        @_ArrayBuilder<Text> _ items: () -> [Text]
     ) -> Self {
         items().reduce(Text(""), +)
     }
@@ -16,6 +16,13 @@ extension Text {
 extension Text {
     public func kerning(_ kerning: CGFloat?) -> Text {
         kerning.map(self.kerning) ?? self
+    }
+}
+
+extension Text {
+    /// Applies a semi-bold font weight to the text.
+    public func semibold() -> Text {
+        fontWeight(.semibold)
     }
 }
 

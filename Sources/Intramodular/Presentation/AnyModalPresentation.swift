@@ -27,7 +27,7 @@ public struct AnyModalPresentation: Identifiable {
     public func environment<T>(_ key: WritableKeyPath<EnvironmentValues, T>, _ value: T) -> Self {
         var result = self
         
-        result.content.mergeEnvironmentBuilderInPlace(.value(value, forKey: key))
+        result.content = result.content.environment(.value(value, forKey: key))
         
         return result
     }
@@ -51,7 +51,7 @@ extension AnyModalPresentation {
     }
 }
 
-// MARK: - Conformances -
+// MARK: - Conformances
 
 extension AnyModalPresentation: Equatable {
     public static func == (lhs: AnyModalPresentation, rhs: AnyModalPresentation) -> Bool {
@@ -61,7 +61,7 @@ extension AnyModalPresentation: Equatable {
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension View {
     /// Adds a condition for whether the presented view hierarchy is dismissable.
@@ -75,7 +75,7 @@ extension View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension AnyModalPresentation {
     struct PreferenceKeyValue: Equatable {
@@ -87,9 +87,9 @@ extension AnyModalPresentation {
 }
 
 struct _DismissDisabled: PreferenceKey {
-    static let defaultValue: Bool = false
+    static let defaultValue: Bool? = nil
     
-    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+    static func reduce(value: inout Bool?, nextValue: () -> Bool?) {
         value = nextValue()
     }
 }
@@ -103,13 +103,13 @@ struct _SetDismissDisabled: ViewModifier {
     
     func body(content: Content) -> some View {
         #if os(iOS) || targetEnvironment(macCatalyst)
-        return content.onAppKitOrUIKitViewControllerResolution { viewController in
-            viewControllerBox.value = viewController.root ?? viewController
-            viewControllerBox.value?.isModalInPresentation = disabled
+        return content.onAppKitOrUIKitViewControllerResolution { [weak viewControllerBox] viewController in
+            viewControllerBox?.value = viewController.root ?? viewController
+            viewControllerBox?.value?.isModalInPresentation = disabled
         }
         .preference(key: _DismissDisabled.self, value: disabled)
-        .onChange(of: disabled) { disabled in
-            viewControllerBox.value?.isModalInPresentation = disabled
+        .onChange(of: disabled) { [weak viewControllerBox] disabled in
+            viewControllerBox?.value?.isModalInPresentation = disabled
         }
         #else
         return content.preference(key: _DismissDisabled.self, value: disabled)

@@ -15,6 +15,8 @@ public typealias AppKitOrUIKitApplicationDelegate = UIApplicationDelegate
 public typealias AppKitOrUIKitApplicationDelegateAdapter = UIApplicationDelegateAdaptor
 public typealias AppKitOrUIKitBezierPath = UIBezierPath
 public typealias AppKitOrUIKitButton = UIButton
+public typealias AppKitOrUIKitCollectionView = UICollectionView
+public typealias AppKitOrUIKitCollectionViewFlowLayout = UICollectionViewFlowLayout
 public typealias AppKitOrUIKitColor = UIColor
 public typealias AppKitOrUIKitControl = UIControl
 public typealias AppKitOrUIKitControlEvent = UIControl.Event
@@ -29,9 +31,15 @@ public typealias AppKitOrUIKitLabel = UILabel
 public typealias AppKitOrUIKitLayoutAxis = NSLayoutConstraint.Axis
 public typealias AppKitOrUIKitLayoutGuide = UILayoutGuide
 public typealias AppKitOrUIKitLayoutPriority = UILayoutPriority
+@available(tvOS, unavailable)
+public typealias AppKitOrUIKitPasteboard = UIPasteboard
+public typealias AppKitOrUIKitRectCorner = UIRectCorner
 public typealias AppKitOrUIKitResponder = UIResponder
+public typealias AppKitOrUIKitScrollView = UIScrollView
+public typealias AppKitOrUIKitSplitViewController = UISplitViewController
 public typealias AppKitOrUIKitSearchBar = UISearchBar
 public typealias AppKitOrUIKitTableView = UITableView
+public typealias AppKitOrUIKitTableViewCell = UITableViewCell
 public typealias AppKitOrUIKitTableViewController = UITableViewController
 public typealias AppKitOrUIKitTextField = UITextField
 public typealias AppKitOrUIKitTextView = UITextView
@@ -70,29 +78,177 @@ public typealias AppKitOrUIKitApplicationDelegate = NSApplicationDelegate
 public typealias AppKitOrUIKitApplicationDelegateAdapter = NSApplicationDelegateAdaptor
 public typealias AppKitOrUIKitBezierPath = NSBezierPath
 public typealias AppKitOrUIKitButton = NSButton
+public typealias AppKitOrUIKitCollectionView = NSCollectionView
+@available(macOS 11, *)
+public typealias AppKitOrUIKitCollectionViewFlowLayout = NSCollectionViewFlowLayout
 public typealias AppKitOrUIKitColor = NSColor
 public typealias AppKitOrUIKitControl = NSControl
+public typealias AppKitOrUIKitEdgeInsets = NSEdgeInsets
 public typealias AppKitOrUIKitEvent = NSEvent
 public typealias AppKitOrUIKitFont = NSFont
 public typealias AppKitOrUIKitHostingController<Content: View> = NSHostingController<Content>
 public typealias AppKitOrUIKitHostingView<Content: View> = NSHostingView<Content>
 public typealias AppKitOrUIKitImage = NSImage
-public typealias AppKitOrUIKitInsets = NSSize
+public typealias AppKitOrUIKitInsets = NSEdgeInsets
 public typealias AppKitOrUIKitLabel = NSLabel
 public typealias AppKitOrUIKitLayoutAxis = NSUserInterfaceLayoutOrientation
 public typealias AppKitOrUIKitLayoutGuide = NSLayoutGuide
 public typealias AppKitOrUIKitLayoutPriority = NSLayoutConstraint.Priority
+public typealias AppKitOrUIKitPasteboard = NSPasteboard
+public typealias AppKitOrUIKitRectCorner = NSRectCorner
 public typealias AppKitOrUIKitResponder = NSResponder
 public typealias AppKitOrUIKitSearchBar = NSSearchField
+public typealias AppKitOrUIKitSplitViewController = NSSplitViewController
 public typealias AppKitOrUIKitTableView = NSTableView
+public typealias AppKitOrUIKitTableViewCell = NSTableCellView
+public typealias AppKitOrUIKitTextField = NSTextField
 public typealias AppKitOrUIKitTextView = NSTextView
 public typealias AppKitOrUIKitView = NSView
 public typealias AppKitOrUIKitViewController = NSViewController
 public typealias AppKitOrUIKitWindow = NSWindow
 
+extension NSAppearance {
+    public func _SwiftUIX_toColorScheme() -> ColorScheme {
+        let darkAppearances: [NSAppearance.Name] = [
+            .vibrantDark,
+            .darkAqua,
+            .accessibilityHighContrastVibrantDark,
+            .accessibilityHighContrastDarkAqua,
+        ]
+        
+        return darkAppearances.contains(self.name) ? .dark : .light
+    }
+    
+    public convenience init?(_SwiftUIX_from colorScheme: ColorScheme) {
+        switch colorScheme {
+            case .light:
+                self.init(named: .aqua)
+            case .dark:
+                self.init(named: .darkAqua)
+            default:
+                return nil
+        }
+    }
+}
+
+extension NSEdgeInsets {
+    var edgeInsets: EdgeInsets {
+        .init(top: top, leading: left, bottom: bottom, trailing: right)
+    }
+}
+
+@available(iOS 15.0, macOS 10.15, watchOS 9.0, *)
+@available(tvOS, unavailable)
+extension NSButton.ControlSize {
+    public init(_ size: SwiftUI.ControlSize) {
+        switch size {
+            case .mini:
+                self = .mini
+            case .small:
+                self = .small
+            case .regular:
+                self = .regular
+            case .large:
+                if #available(macOS 11.0, *) {
+                    self = .large
+                } else {
+                    self = .regular
+                }
+            default:
+                assertionFailure()
+                
+                self = .regular
+        }
+    }
+}
+
+extension NSFont {
+    @available(macOS 11.0, *)
+    public static func preferredFont(forTextStyle textStyle: TextStyle) -> NSFont {
+        .preferredFont(forTextStyle: textStyle, options: [:])
+    }
+}
+
+public struct NSRectCorner: OptionSet {
+    public static let allCorners: Self = [.topLeft, .topRight, .bottomLeft, .bottomRight]
+    
+    public static let topLeft: Self = Self(rawValue: 1 << 0)
+    public static let topRight: Self = Self(rawValue: 1 << 1)
+    public static let bottomLeft: Self = Self(rawValue: 1 << 2)
+    public static let bottomRight: Self = Self(rawValue: 1 << 3)
+    
+    public let rawValue: Int
+    
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+}
+
+extension NSSize {
+    public init(_ edgeInsets: EdgeInsets) {
+        self.init(
+            width: edgeInsets.leading + edgeInsets.trailing,
+            height: edgeInsets.top + edgeInsets.bottom
+        )
+    }
+}
+
+extension NSView {
+    public struct AnimationOptions: OptionSet {
+        public static let curveEaseInOut = AnimationOptions(rawValue: 1 << 0)
+        public static let curveEaseIn = AnimationOptions(rawValue: 1 << 1)
+        public static let curveEaseOut = AnimationOptions(rawValue: 1 << 2)
+        public static let curveLinear = AnimationOptions(rawValue: 1 << 3)
+        
+        public let rawValue: Int
+        
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+        
+        public func _toCAAnimationMediaTimingFunction() -> CAMediaTimingFunctionName {
+            switch self {
+                case .curveEaseIn:
+                    return CAMediaTimingFunctionName.easeIn
+                case .curveEaseOut:
+                    return CAMediaTimingFunctionName.easeOut
+                case .curveLinear:
+                    return CAMediaTimingFunctionName.linear
+                default:
+                    return CAMediaTimingFunctionName.default
+            }
+        }
+    }
+    
+    public static func animate(
+        withDuration duration: TimeInterval,
+        delay: TimeInterval = 0.0,
+        options: AnimationOptions = .curveEaseInOut,
+        @_implicitSelfCapture animations: @escaping () -> Void,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.allowsImplicitAnimation = true
+            context.timingFunction = CAMediaTimingFunction(name: options._toCAAnimationMediaTimingFunction())
+            
+            if delay > 0.0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    animations()
+                }
+            } else {
+                animations()
+            }
+            
+        } completionHandler: {
+            completion?(true)
+        }
+    }
+}
+
 extension NSView {
     public static var layoutFittingCompressedSize: CGSize {
-        .init(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        .init(width: 0, height: 0)
     }
     
     public static var layoutFittingExpandedSize: CGSize {
@@ -101,6 +257,47 @@ extension NSView {
     
     @objc open func hitTest(_ point: CGPoint, with event: NSEvent?) -> NSView? {
         hitTest(point)
+    }
+}
+
+extension NSVisualEffectView.Material: CaseIterable {
+    public static var allCases: [Self] {
+        [.titlebar, .selection, .menu, .popover, .sidebar, .headerView, .sheet, .windowBackground, .hudWindow, .fullScreenUI, .toolTip, .contentBackground, .underWindowBackground, .underPageBackground]
+    }
+    
+    public var name: String {
+        switch self {
+            case .titlebar:
+                return "titlebar"
+            case .selection:
+                return "selection"
+            case .menu:
+                return "menu"
+            case .popover:
+                return "popover"
+            case .sidebar:
+                return "sidebar"
+            case .headerView:
+                return "headerView"
+            case .sheet:
+                return "sheet"
+            case .windowBackground:
+                return "windowBackground"
+            case .hudWindow:
+                return "hudWindow"
+            case .fullScreenUI:
+                return "fullScreenUI"
+            case .toolTip:
+                return "toolTip"
+            case .contentBackground:
+                return "contentBackground"
+            case .underWindowBackground:
+                return "underWindowBackground"
+            case .underPageBackground:
+                return "underPageBackground"
+            default:
+                return "unknown"
+        }
     }
 }
 
@@ -157,48 +354,109 @@ public let NSOpenPanel_Type = unsafeBitCast(NSClassFromString("NSOpenPanel"), to
 
 #if os(iOS) || os(tvOS) || os(macOS) || targetEnvironment(macCatalyst)
 
+public struct _AppKitOrUIKitViewAnimation: Equatable  {
+    public let options: AppKitOrUIKitView.AnimationOptions
+    public let duration: CGFloat
+    
+    public init(options: AppKitOrUIKitView.AnimationOptions, duration: CGFloat) {
+        self.options = options
+        self.duration = duration
+    }
+    
+    public static func easeInOut(duration: Double) -> Self {
+        .init(options: .curveEaseInOut, duration: duration)
+    }
+
+    public static var easeInOut: Self {
+        .init(options: .curveEaseInOut, duration: 0.3)
+    }
+    
+    public static func easeIn(duration: Double) -> Self {
+        .init(options: .curveEaseIn, duration: duration)
+    }
+
+    public static var easeIn: Self {
+        .init(options: .curveEaseIn, duration: 0.3)
+    }
+    
+    public static func easeOut(duration: Double) -> Self {
+        .init(options: .curveEaseOut, duration: duration)
+    }
+
+    public static var easeOut: Self {
+        .init(options: .curveEaseOut, duration: 0.3)
+    }
+}
+
+public func _withAppKitOrUIKitAnimation(
+    _ animation: _AppKitOrUIKitViewAnimation?,
+    @_implicitSelfCapture body: @escaping () -> ()
+) {
+    guard let animation else {
+        body()
+        
+        return
+    }
+    
+    AppKitOrUIKitView.animate(
+        withDuration: animation.duration,
+        delay: 0,
+        options: animation.options,
+        animations: body
+    )
+}
+
+#if os(macOS)
+extension AppKitOrUIKitViewController {
+    public func _setNeedsLayout() {
+        view.needsLayout = true
+    }
+}
+#else
+extension AppKitOrUIKitViewController {
+    public func _setNeedsLayout() {
+        view.setNeedsLayout()
+    }
+}
+#endif
+
 extension EnvironmentValues {
-    public var _appKitOrUIKitViewController: AppKitOrUIKitViewController? {
-        get {
-            _appKitOrUIKitViewControllerBox?.value
-        } set {
-            if let box = _appKitOrUIKitViewControllerBox {
-                box.value = newValue
-            } else {
-                _appKitOrUIKitViewControllerBox = .init(newValue)
-            }
-        }
+    struct AppKitOrUIKitViewControllerBoxKey: EnvironmentKey {
+        typealias Value = ObservableWeakReferenceBox<AppKitOrUIKitViewController>?
+        
+        static let defaultValue: Value = nil
     }
     
-    #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-    public var _appKitOrUIKitWindowScene: UIWindowScene? {
-        _appKitOrUIKitViewController?.view.window?.windowScene
-    }
-    #endif
-    
-    var _appKitOrUIKitViewControllerBox: ObservableWeakReferenceBox<AppKitOrUIKitViewController>? {
+    var _appKitOrUIKitViewControllerBox: AppKitOrUIKitViewControllerBoxKey.Value {
         get {
-            self[DefaultEnvironmentKey<ObservableWeakReferenceBox<AppKitOrUIKitViewController>>.self]
+            self[AppKitOrUIKitViewControllerBoxKey.self]
         } set {
-            self[DefaultEnvironmentKey<ObservableWeakReferenceBox<AppKitOrUIKitViewController>>.self] = newValue
+            self[AppKitOrUIKitViewControllerBoxKey.self] = newValue
         }
     }
 }
 
 public struct AppKitOrUIKitViewControllerAdaptor<AppKitOrUIKitViewControllerType: AppKitOrUIKitViewController>: AppKitOrUIKitViewControllerRepresentable {
-    #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
     public typealias UIViewControllerType = AppKitOrUIKitViewControllerType
-    #elseif os(macOS)
+#elseif os(macOS)
     public typealias NSViewControllerType = AppKitOrUIKitViewControllerType
-    #endif
+#endif
     
     private let makeAppKitOrUIKitViewControllerImpl: (Context) -> AppKitOrUIKitViewControllerType
     private let updateAppKitOrUIKitViewControllerImpl: (AppKitOrUIKitViewControllerType, Context) -> ()
     
     public init(
-        _ makeAppKitOrUIKitViewController: @autoclosure @escaping () -> AppKitOrUIKitViewControllerType
+        _ makeController: @autoclosure @escaping () -> AppKitOrUIKitViewControllerType
     ) {
-        self.makeAppKitOrUIKitViewControllerImpl = { _ in makeAppKitOrUIKitViewController() }
+        self.makeAppKitOrUIKitViewControllerImpl = { _ in makeController() }
+        self.updateAppKitOrUIKitViewControllerImpl = { _, _ in }
+    }
+    
+    public init(
+        _ makeController: @escaping () -> AppKitOrUIKitViewControllerType
+    ) {
+        self.makeAppKitOrUIKitViewControllerImpl = { _ in makeController() }
         self.updateAppKitOrUIKitViewControllerImpl = { _, _ in }
     }
     
@@ -213,55 +471,6 @@ public struct AppKitOrUIKitViewControllerAdaptor<AppKitOrUIKitViewControllerType
         context: Context
     ) {
         updateAppKitOrUIKitViewControllerImpl(uiViewController, context)
-    }
-}
-
-#endif
-
-struct _ResolveAppKitOrUIKitViewController: ViewModifier {
-    #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
-    @State var _appKitOrUIKitViewControllerBox = ObservableWeakReferenceBox<AppKitOrUIKitViewController>(nil)
-    @State var presentationCoordinatorBox =
-        ObservableWeakReferenceBox<CocoaPresentationCoordinator>(nil)
-    
-    func body(content: Content) -> some View {
-        #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-        return content
-            .modifier(_UseCocoaPresentationCoordinator(coordinator: presentationCoordinatorBox))
-            .environment(\._appKitOrUIKitViewControllerBox, _appKitOrUIKitViewControllerBox)
-            .environment(\.navigator, _appKitOrUIKitViewControllerBox.value?.navigationController)
-            .onAppKitOrUIKitViewControllerResolution { viewController in
-                if !(_appKitOrUIKitViewControllerBox.value === viewController) {
-                    _appKitOrUIKitViewControllerBox.value = viewController
-                }
-                
-                if !(presentationCoordinatorBox.value === viewController._cocoaPresentationCoordinator) {
-                    presentationCoordinatorBox.value =
-                        viewController.presentationCoordinator
-                }
-            }
-        #else
-        return content
-        #endif
-    }
-    #else
-    func body(content: Content) -> some View {
-        content
-    }
-    #endif
-}
-
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-public func withAppKitOrUIKitViewController<Content: View>(
-    _ content: @escaping (AppKitOrUIKitViewController?) -> Content
-) -> some View {
-    withInlineState(initialValue: Optional<AppKitOrUIKitViewController>.none) { viewController in
-        content(viewController.wrappedValue)
-            .onAppKitOrUIKitViewControllerResolution { _viewController in
-                if _viewController !== viewController.wrappedValue {
-                    viewController.wrappedValue = _viewController
-                }
-            }
     }
 }
 

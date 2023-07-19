@@ -21,7 +21,7 @@ public struct _VisibilityModifier: ViewModifier {
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 extension View {
     /// Sets a view's visibility.
@@ -30,5 +30,14 @@ extension View {
     @inlinable
     public func visible(_ isVisible: Bool = true) -> some View {
         modifier(_VisibilityModifier(isVisible: isVisible))
+    }
+
+    /// Sets a view's visibility.
+    ///
+    /// The view still retains its frame.
+    @inlinable
+    public func visible(_ isVisible: Bool, animation: Animation?) -> some View {
+        modifier(_VisibilityModifier(isVisible: isVisible))
+            .animation(animation, value: isVisible)
     }
 }

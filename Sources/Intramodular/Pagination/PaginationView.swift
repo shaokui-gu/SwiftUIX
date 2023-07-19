@@ -2,11 +2,25 @@
 // Copyright (c) Vatsal Manot
 //
 
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 
 import Swift
 import SwiftUI
 import UIKit
+
+public struct PaginationState: Hashable {
+    public enum TransitionDirection: Hashable {
+        case backward
+        case forward
+    }
+    
+    public var activePageTransitionDirection: TransitionDirection?
+    public var activePageTransitionProgress: Double = 0.0
+    
+    public init() {
+        
+    }
+}
 
 /// A view that paginates its children along a given axis.
 public struct PaginationView<Page: View>: View {
@@ -39,6 +53,8 @@ public struct PaginationView<Page: View>: View {
     @inlinable
     @DelayedState public var _progressionController: ProgressionController?
     
+    var paginationState: Binding<PaginationState>?
+        
     @inlinable
     public init(
         content: AnyForEach<Page>,
@@ -88,7 +104,8 @@ public struct PaginationView<Page: View>: View {
                         pageIndicatorAlignment: pageIndicatorAlignment,
                         interPageSpacing: interPageSpacing,
                         cyclesPages: cyclesPages,
-                        initialPageIndex: initialPageIndex
+                        initialPageIndex: initialPageIndex,
+                        paginationState: paginationState
                     ),
                     currentPageIndex: currentPageIndex ?? $_currentPageIndex,
                     progressionController: $_progressionController
@@ -110,7 +127,7 @@ public struct PaginationView<Page: View>: View {
     }
 }
 
-// MARK: - Initializers -
+// MARK: - Initializers
 
 extension PaginationView {
     @inlinable
@@ -183,7 +200,7 @@ extension PaginationView {
         axis: Axis = .horizontal,
         transitionStyle: UIPageViewController.TransitionStyle = .scroll,
         showsIndicators: Bool = true,
-        @ArrayBuilder<Page> content: () -> [Page]
+        @_ArrayBuilder<Page> content: () -> [Page]
     ) {
         self.init(
             pages: content(),
@@ -410,7 +427,7 @@ extension PaginationView {
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension PaginationView {
     @inlinable
@@ -438,6 +455,12 @@ extension PaginationView {
     @inlinable
     public func currentPageIndex(_ currentPageIndex: Binding<Int>) -> Self {
         then({ $0.currentPageIndex = currentPageIndex })
+    }
+}
+
+extension PaginationView {
+    public func paginationState(_ paginationState: Binding<PaginationState>) -> Self {
+        then({ $0.paginationState = paginationState })
     }
 }
 

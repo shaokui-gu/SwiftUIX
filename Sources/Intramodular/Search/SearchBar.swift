@@ -5,7 +5,7 @@
 import Swift
 import SwiftUI
 
-#if os(iOS) || os(macOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(macOS) || targetEnvironment(macCatalyst)
 
 /// A specialized view for receiving search-related information from the user.
 public struct SearchBar: DefaultTextInputType {
@@ -24,13 +24,14 @@ public struct SearchBar: DefaultTextInputType {
     
     private let onEditingChanged: (Bool) -> Void
     private let onCommit: () -> Void
+    private var isInitialFirstResponder: Bool?
     private var isFocused: Binding<Bool>? = nil
     
     private var placeholder: String?
     
+    private var appKitOrUIKitFont: AppKitOrUIKitFont?
+    private var appKitOrUIKitForegroundColor: AppKitOrUIKitColor?
     #if os(iOS) || targetEnvironment(macCatalyst)
-    private var appKitOrUIKitFont: UIFont?
-    private var appKitOrUIKitForegroundColor: UIColor?
     private var appKitOrUIKitSearchFieldBackgroundColor: UIColor?
     private var searchBarStyle: UISearchBar.Style = .minimal
     private var iconImageConfiguration: [UISearchBar.Icon: AppKitOrUIKitImage] = [:]
@@ -46,7 +47,12 @@ public struct SearchBar: DefaultTextInputType {
     private var textContentType: UITextContentType? = nil
     private var keyboardType: UIKeyboardType?
     #endif
-    
+
+    #if os(macOS)
+    private var isBezeled: Bool = true
+    private var focusRingType: NSFocusRingType = .default
+    #endif
+
     public init<S: StringProtocol>(
         _ title: S,
         text: Binding<String>,
@@ -82,7 +88,15 @@ extension SearchBar: UIViewRepresentable {
         let uiView = _UISearchBar()
         
         uiView.delegate = context.coordinator
-        
+
+        if context.environment.isEnabled {
+            DispatchQueue.main.async {
+                if (isInitialFirstResponder ?? isFocused?.wrappedValue) ?? false {
+                    uiView.becomeFirstResponder()
+                }
+            }
+        }
+
         return uiView
     }
     
@@ -96,9 +110,13 @@ extension SearchBar: UIViewRepresentable {
         _ uiView: UIViewType,
         environment: EnvironmentValues
     ) {
+        uiView.isUserInteractionEnabled = environment.isEnabled
+
         style: do {
+            uiView.searchTextField.autocorrectionType = environment.disableAutocorrection.map({ $0 ? .no : .yes }) ?? .default
+            
             if (appKitOrUIKitFont != nil || environment.font != nil) || appKitOrUIKitForegroundColor != nil || appKitOrUIKitSearchFieldBackgroundColor != nil {
-                if let font = appKitOrUIKitFont ?? environment.font?.toUIFont() {
+                if let font = try? appKitOrUIKitFont ?? environment.font?.toAppKitOrUIKitFont() {
                     uiView.searchTextField.font = font
                 }
                 
@@ -114,17 +132,17 @@ extension SearchBar: UIViewRepresentable {
             if let placeholder = placeholder {
                 uiView.placeholder = placeholder
             }
-            
-            uiView.searchBarStyle = searchBarStyle
-            
+
+            _assignIfNotEqual(searchBarStyle, to: &uiView.searchBarStyle)
+
             for (icon, image) in iconImageConfiguration {
                 if uiView.image(for: icon, state: .normal) == nil { // FIXME: This is a performance hack.
                     uiView.setImage(image, for: icon, state: .normal)
                 }
             }
-            
-            uiView.tintColor = environment.tintColor?.toUIColor()
-            
+
+            _assignIfNotEqual(environment.tintColor?.toUIColor(), to: &uiView.tintColor)
+
             if let showsCancelButton = showsCancelButton {
                 if uiView.showsCancelButton != showsCancelButton {
                     uiView.setShowsCancelButton(showsCancelButton, animated: true)
@@ -133,23 +151,9 @@ extension SearchBar: UIViewRepresentable {
         }
         
         keyboard: do {
-            if let returnKeyType = returnKeyType {
-                uiView.returnKeyType = returnKeyType
-            } else {
-                uiView.returnKeyType = .default
-            }
-            
-            if let keyboardType = keyboardType {
-                uiView.keyboardType = keyboardType
-            } else {
-                uiView.keyboardType = .default
-            }
-            
-            if let enablesReturnKeyAutomatically = enablesReturnKeyAutomatically {
-                uiView.enablesReturnKeyAutomatically = enablesReturnKeyAutomatically
-            } else {
-                uiView.enablesReturnKeyAutomatically = false
-            }
+            _assignIfNotEqual(returnKeyType ?? .default, to: &uiView.returnKeyType)
+            _assignIfNotEqual(keyboardType ?? .default, to: &uiView.keyboardType)
+            _assignIfNotEqual(enablesReturnKeyAutomatically ?? false, to: &uiView.enablesReturnKeyAutomatically)
         }
         
         data: do {
@@ -158,8 +162,8 @@ extension SearchBar: UIViewRepresentable {
             }
             
             if let searchTokens = searchTokens?.wrappedValue {
-                if uiView.searchTextField.tokens.map(\._SwiftUIX_text) == searchTokens.map(\.text) {
-                    
+                if uiView.searchTextField.tokens.map(\._SwiftUIX_text) != searchTokens.map(\.text) {
+                    uiView.searchTextField.tokens = searchTokens.map({ .init($0) })
                 }
             } else {
                 if !uiView.searchTextField.tokens.isEmpty {
@@ -169,11 +173,11 @@ extension SearchBar: UIViewRepresentable {
         }
         
         updateResponderChain: do {
-            if let uiView = uiView as? _UISearchBar {
-                if let isFocused = isFocused, uiView.window != nil {
-                    uiView.isFirstResponderBinding = isFocused
+            if let uiView = uiView as? _UISearchBar, environment.isEnabled {
+                DispatchQueue.main.async {
+                    if let isFocused = isFocused, uiView.window != nil {
+                        uiView.isFirstResponderBinding = isFocused
 
-                    DispatchQueue.main.async {
                         if isFocused.wrappedValue && !uiView.isFirstResponder {
                             uiView.becomeFirstResponder()
                         } else if !isFocused.wrappedValue && uiView.isFirstResponder {
@@ -199,7 +203,11 @@ extension SearchBar: UIViewRepresentable {
         public func searchBar(_ searchBar: UIViewType, textDidChange searchText: String) {
             base.text = searchText
         }
-        
+
+        public func searchBarShouldEndEditing(_ searchBar: UISearchBar) -> Bool {
+            true
+        }
+
         public func searchBarTextDidEndEditing(_ searchBar: UISearchBar) {
             base.onEditingChanged(false)
         }
@@ -218,7 +226,7 @@ extension SearchBar: UIViewRepresentable {
     }
     
     public func makeCoordinator() -> Coordinator {
-        return Coordinator(base: self)
+        Coordinator(base: self)
     }
 }
 
@@ -228,33 +236,63 @@ extension SearchBar: UIViewRepresentable {
 @available(iOSApplicationExtension, unavailable)
 @available(tvOSApplicationExtension, unavailable)
 extension SearchBar: NSViewRepresentable {
-    public typealias NSViewType = NSSearchField
-    
-    public func makeNSView(context: Context) -> NSViewType {
-        let nsView = NSSearchField(string: placeholder ?? "")
+    public final class NSViewType: NSSearchField {
+        var isFirstResponderBinding: Binding<Bool>?
+
+        override public func becomeFirstResponder() -> Bool {
+            let result = super.becomeFirstResponder()
+            
+            isFirstResponderBinding?.wrappedValue = result
+            
+            return result
+        }
         
+        override public func resignFirstResponder() -> Bool {
+            let result = super.resignFirstResponder()
+            
+            isFirstResponderBinding?.wrappedValue = !result
+            
+            return result
+        }
+    }
+        
+    public func makeNSView(context: Context) -> NSViewType {
+        let nsView = NSViewType(string: placeholder ?? "")
+
         nsView.delegate = context.coordinator
         nsView.target = context.coordinator
         nsView.action = #selector(context.coordinator.performAction(_:))
-        
-        nsView.bezelStyle = .roundedBezel
+
         nsView.cell?.sendsActionOnEndEditing = false
-        nsView.isBordered = false
-        nsView.isBezeled = true
-        
+
         return nsView
     }
     
-    public func updateNSView(_ nsView: NSSearchField, context: Context) {
+    public func updateNSView(_ nsView: NSViewType, context: Context) {
         context.coordinator.base = self
-        
-        if nsView.stringValue != text {
-            nsView.stringValue = text
+        context.coordinator.view = nsView
+
+        nsView.isFirstResponderBinding = isFocused
+
+        _assignIfNotEqual(.roundedBezel, to: &nsView.bezelStyle)
+        _assignIfNotEqual(focusRingType, to: &nsView.focusRingType)
+        _assignIfNotEqual(false, to: &nsView.isBordered)
+        _assignIfNotEqual(isBezeled, to: &nsView.isBezeled)
+        _assignIfNotEqual(placeholder, to: &nsView.placeholderString)
+
+        (nsView.cell as? NSSearchFieldCell)?.searchButtonCell?.isTransparent = !isBezeled
+
+        if let appKitOrUIKitFont = appKitOrUIKitFont {
+            _assignIfNotEqual(appKitOrUIKitFont, to: &nsView.font)
         }
+
+        _assignIfNotEqual(text, to: &nsView.stringValue)
     }
     
     final public class Coordinator: NSObject, NSSearchFieldDelegate {
         var base: SearchBar
+        
+        weak var view: NSViewType?
         
         init(base: SearchBar) {
             self.base = base
@@ -289,7 +327,7 @@ extension SearchBar: NSViewRepresentable {
 
 #endif
 
-// MARK: - API -
+// MARK: - API
 
 @available(macCatalystApplicationExtension, unavailable)
 @available(iOSApplicationExtension, unavailable)
@@ -301,6 +339,13 @@ extension SearchBar {
 }
 
 extension SearchBar {
+    @available(macCatalystApplicationExtension, unavailable)
+    @available(iOSApplicationExtension, unavailable)
+    @available(tvOSApplicationExtension, unavailable)
+    public func isInitialFirstResponder(_ isInitialFirstResponder: Bool) -> Self {
+        then({ $0.isInitialFirstResponder = isInitialFirstResponder })
+    }
+
     @available(macCatalystApplicationExtension, unavailable)
     @available(iOSApplicationExtension, unavailable)
     @available(tvOSApplicationExtension, unavailable)
@@ -323,20 +368,26 @@ extension SearchBar {
 @available(tvOSApplicationExtension, unavailable)
 extension SearchBar {
     #if os(iOS) || os(macOS) || targetEnvironment(macCatalyst)
-    public func placeholder(_ placeholder: String) -> Self {
+    public func placeholder(_ placeholder: String?) -> Self {
         then({ $0.placeholder = placeholder })
     }
     #endif
-    
-    #if os(iOS) || targetEnvironment(macCatalyst)
-    public func font(_ font: UIFont) -> Self {
+
+    /// Sets the default font for text in the view.
+    public func font(_ font: AppKitOrUIKitFont?) -> Self {
         then({ $0.appKitOrUIKitFont = font })
     }
-    
+
+    /// Sets the default font for text in the view.
+    public func font<F: FontFamily>(_ font: F, size: CGFloat) -> Self {
+        self.font(AppKitOrUIKitFont(name: font.rawValue, size: size))
+    }
+
     public func foregroundColor(_ foregroundColor: AppKitOrUIKitColor) -> Self {
         then({ $0.appKitOrUIKitForegroundColor = foregroundColor })
     }
     
+    #if os(iOS) || targetEnvironment(macCatalyst)
     @_disfavoredOverload
     public func foregroundColor(_ foregroundColor: Color) -> Self {
         then({ $0.appKitOrUIKitForegroundColor = foregroundColor.toUIColor() })
@@ -387,9 +438,19 @@ extension SearchBar {
         then({ $0.keyboardType = keyboardType })
     }
     #endif
+
+    #if os(macOS)
+    public func focusRingType(_ focusRingType: NSFocusRingType) -> Self {
+        then({ $0.focusRingType = focusRingType })
+    }
+
+    public func isBezeled(_ isBezeled: Bool) -> Self {
+        then({ $0.isBezeled = isBezeled })
+    }
+    #endif
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 #if os(iOS) || targetEnvironment(macCatalyst)
 private final class _UISearchBar: UISearchBar {
@@ -427,7 +488,7 @@ private final class _UISearchBar: UISearchBar {
 
 // MARK: - Development Preview -
 
-#if os(iOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || targetEnvironment(macCatalyst)
 @available(macCatalystApplicationExtension, unavailable)
 @available(iOSApplicationExtension, unavailable)
 @available(tvOSApplicationExtension, unavailable)

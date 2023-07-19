@@ -16,10 +16,8 @@ public struct StackNavigationView<Content: View>: View {
     }
     
     public var body: some View {
-        NavigationView {
-            PresentationView {
-                content
-            }
+        _NestedNavigationView {
+            content
         }
         .navigationViewStyle(StackNavigationViewStyle())
     }

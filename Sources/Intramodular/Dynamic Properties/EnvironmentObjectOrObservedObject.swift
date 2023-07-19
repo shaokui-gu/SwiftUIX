@@ -2,37 +2,29 @@
 // Copyright (c) Vatsal Manot
 //
 
+import Combine
 import Dispatch
 import Swift
 import SwiftUI
 
+/// A property wrapper type for an observable object supplied by a parent or ancestor view, either directly or via `View/environmentObject(_:)`.
+@available(*, deprecated)
 @propertyWrapper
 public struct EnvironmentObjectOrObservedObject<Value: ObservableObject>: DynamicProperty {
     let defaultValue: () -> Value
     
-    @OptionalEnvironmentObject<Value> private var _wrappedValue0: Value?
+    @EnvironmentObject.Optional private var _wrappedValue0: Value?
+    
     @OptionalObservedObject private var _wrappedValue1: Value?
     
     public var wrappedValue: Value {
-        get {
-            if let result = _wrappedValue1 ?? _wrappedValue0 {
-                return result
-            } else {
-                assertionFailure()
-                
-                return defaultValue()
-            }
-        } nonmutating set {
-            _wrappedValue1 = newValue
+        if let result = _wrappedValue1 ?? _wrappedValue0 {
+            return result
+        } else {
+            assertionFailure()
+            
+            return defaultValue()
         }
-    }
-    
-    /// The binding value, as "unwrapped" by accessing `$foo` on a `@Binding` property.
-    public var projectedValue: Binding<Value> {
-        return .init(
-            get: { self.wrappedValue },
-            set: { self.wrappedValue = $0 }
-        )
     }
     
     /// Initialize with the provided initial value.
@@ -42,7 +34,7 @@ public struct EnvironmentObjectOrObservedObject<Value: ObservableObject>: Dynami
     
     public mutating func update() {
         if _wrappedValue0 == nil {
-            _wrappedValue1 = defaultValue()
+            __wrappedValue1 = .init(wrappedValue: defaultValue())
         }
         
         self.__wrappedValue0.update()

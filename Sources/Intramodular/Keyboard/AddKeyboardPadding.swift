@@ -2,7 +2,7 @@
 // Copyright (c) Vatsal Manot
 //
 
-#if os(iOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || targetEnvironment(macCatalyst)
 
 import Combine
 import SwiftUI
@@ -50,7 +50,7 @@ private struct AddKeyboardPadding: ViewModifier {
                             padding = keyboardHeight
                         }
                     } else {
-                      padding = max(0, min(CGFloat(UIResponder.firstResponder?.globalFrame?.maxY ?? 0.0) - CGFloat((geometry.frame(in: .global).height) - keyboardHeight), keyboardHeight) - geometry.safeAreaInsets.bottom)
+                      padding = max(0, min(CGFloat(UIResponder._SwiftUIX_firstResponder?.globalFrame?.maxY ?? 0.0) - CGFloat((geometry.frame(in: .global).height) - keyboardHeight), keyboardHeight) - geometry.safeAreaInsets.bottom)
                     }
                 })
                 .animation(animation, value: contentPadding)
@@ -75,7 +75,7 @@ private struct AddKeyboardPadding: ViewModifier {
 
 #endif
 
-// MARK: - API -
+// MARK: - API
 
 public enum KeyboardPadding {
     case keyboard
@@ -83,6 +83,7 @@ public enum KeyboardPadding {
     case keyboardIntelligent // experimental
 }
 
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 @available(macCatalystApplicationExtension, unavailable)
 @available(iOSApplicationExtension, unavailable)
 extension View {
@@ -105,3 +106,4 @@ extension View {
         #endif
     }
 }
+#endif

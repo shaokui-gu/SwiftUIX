@@ -51,15 +51,15 @@ extension View {
         of value: V,
         perform action: @escaping (V) -> Void
     ) -> some View {
-        #if os(iOS) || os(watchOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if os(iOS) || os(watchOS) || os(tvOS) || targetEnvironment(macCatalyst)
         if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
             onChange(of: value, perform: action)
         } else {
             _backport_onChange(of: value, perform: action)
         }
-        #else
+#else
         _backport_onChange(of: value, perform: action)
-        #endif
+#endif
     }
     
     @ViewBuilder
@@ -72,7 +72,9 @@ extension View {
 }
 
 extension View {
-    public func onChangeOfFrame(perform action: @escaping (CGSize) -> Void) -> some View {
+    public func onChangeOfFrame(
+        perform action: @escaping (CGSize) -> Void
+    ) -> some View {
         modifier(_OnChangeOfFrame(action: action))
     }
 }
@@ -86,7 +88,7 @@ extension View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 // A modified implementation based on https://stackoverflow.com/questions/58363563/swiftui-get-notified-when-binding-value-changes
 private struct OnChangeOfValue<Base: View, Value: Equatable>: View {
@@ -128,8 +130,13 @@ private struct _OnChangeOfFrame: ViewModifier {
     let action: (CGSize) -> Void
     
     func body(content: Content) -> some View {
-        IntrinsicGeometryReader { proxy in
-            content.onChange(of: proxy.size, perform: action)
+        content.background {
+            GeometryReader { proxy in
+                ZeroSizeView()
+                    .onChange(of: proxy.size, perform: { action($0) })
+            }
+            .allowsHitTesting(false)
+            .accessibility(hidden: true)
         }
     }
 }
@@ -143,14 +150,20 @@ private struct _StreamChangesForValue<Value: Equatable>: ViewModifier {
     @State private var cancellable: AnyCancellable?
     
     func body(content: Content) -> some View {
-        content.onChange(of: value) { newValue in
-            subscribeIfNecessary()
-            
-            valuePublisher.send(newValue)
-        }
-        .onAppear {
-            subscribeIfNecessary()
-        }
+        content
+            .background {
+                ZeroSizeView()
+                    .onChange(of: value) { newValue in
+                        subscribeIfNecessary()
+                        
+                        valuePublisher.send(newValue)
+                    }
+                    .onAppear {
+                        subscribeIfNecessary()
+                    }
+                    .allowsHitTesting(false)
+                    .accessibility(hidden: true)
+            }
     }
     
     private func subscribeIfNecessary() {

@@ -6,9 +6,7 @@ import Swift
 import SwiftUI
 
 /// A control which pops a view in a navigation stack.
-public struct PopNavigationButton<Label: View>: ActionLabelView {
-    @Environment(\.navigator) private var navigator
-    
+public struct PopNavigationButton<Label: View>: ActionLabelView {    
     private let action: Action
     private let label: Label
     
@@ -30,6 +28,6 @@ public struct PopNavigationButton<Label: View>: ActionLabelView {
                 label
             }
         }
-        .modifier(_ResolveAppKitOrUIKitViewController())
+        ._resolveAppKitOrUIKitViewControllerIfAvailable()
     }
 }

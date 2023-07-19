@@ -2,21 +2,17 @@
 // Copyright (c) Vatsal Manot
 //
 
-#if swift(>=5.2)
-
 @available(iOS 13, *)
-@available(tvOS, unavailable)
+@available(tvOS 16.0, *)
 @available(watchOS, unavailable)
 @available(OSX, unavailable)
 public struct _HoverEffectViewModifier: ViewModifier {
     public let hoverEffect: HoverEffect
     
-    @inlinable
     public init(hoverEffect: HoverEffect) {
         self.hoverEffect = hoverEffect
     }
-    
-    @inlinable
+
     public func body(content: Content) -> some View {
         if #available(iOS 13.4, iOSApplicationExtension 14.0, macCatalystApplicationExtension 14.0, *) {
             return content.hoverEffect(.init(hoverEffect))
@@ -24,15 +20,13 @@ public struct _HoverEffectViewModifier: ViewModifier {
             fatalError("Use View.hoverEffectIfAvailable instead.")
         }
     }
-    
 }
 
 @available(iOS 13, *)
-@available(tvOS, unavailable)
+@available(tvOS 16.0, *)
 @available(watchOS, unavailable)
 @available(OSX, unavailable)
 extension View {
-    @inlinable
     public func hoverEffectIfAvailable(_ effect: HoverEffect = .automatic) -> some View {
         typealias Content = _ConditionalContent<ModifiedContent<Self, _HoverEffectViewModifier>, Self>
         
@@ -43,5 +37,3 @@ extension View {
         }
     }
 }
-
-#endif

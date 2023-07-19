@@ -8,81 +8,79 @@ import AppKit
 import Swift
 import SwiftUI
 
-class NSHostingStatusBarPopover<ID: Equatable, Content: View>: NSHostingPopover<Content> {
-    var _statusBarBase = NSStatusBar()
-    var _statusItemBase: NSStatusItem? {
+public class NSHostingStatusBarPopover<ID: Equatable, Content: View>: NSHostingPopover<Content> {
+    var item: MenuBarItem<ID, Content> {
         didSet {
-            _statusItemBase?.button?.action = #selector(togglePopover(sender:))
-            _statusItemBase?.button?.target = self
+            menuBarExtraCoordinator.item = item
         }
     }
     
-    public var statusItem: StatusItem<ID, Content> {
+    private lazy var menuBarExtraCoordinator: _CocoaMenuBarExtraCoordinator<ID, Content> = .init(item: item, action: { [weak self] in
+        self?.togglePopover(sender: nil)
+    })
+    
+    var isActive: Binding<Bool>? {
         didSet {
-            updateStatusBarItem(oldValue: oldValue)
+            if let isActive = isActive {
+                if isActive.wrappedValue, !self.isShown {
+                    present(nil)
+                }
+            }
         }
     }
     
-    public init(item: StatusItem<ID, Content>) {
-        self.statusItem = item
+    public init(item: MenuBarItem<ID, Content>) {
+        self.item = item
         
         super.init(rootView: item.content)
         
-        updateStatusBarItem(oldValue: item)
+        menuBarExtraCoordinator.item = item
+        
+        behavior = NSPopover.Behavior.transient
+        
+        _ = Unmanaged.passUnretained(self).retain() // fixes a crash
+        
+        if let isActive = isActive, isActive.wrappedValue, !isShown {
+            present(nil)
+        }
     }
     
-    public required init?(coder: NSCoder) {
+    required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    private func updateStatusBarItem(oldValue: StatusItem<ID, Content>) {
-        if let item = _statusItemBase {
-            if oldValue.id != statusItem.id {
-                _statusBarBase.removeStatusItem(item)
-                _statusItemBase = nil
-            }
-            
-            if oldValue.length != statusItem.length {
-                _statusBarBase.removeStatusItem(item)
-                _statusItemBase = nil
-            }
+    @objc func togglePopover(sender: AnyObject?) {
+        if isShown {
+            hide(sender)
+        } else {
+            present(sender)
         }
-        
-        rootView = statusItem.content
-        
-        if _statusItemBase == nil {
-            _statusItemBase = _statusBarBase.statusItem(withLength: statusItem.length)
-        }
-        
-        statusItem.update(_statusItemBase!)
     }
     
-    public func present(_ sender: AnyObject?) {
-        guard let statusBarButton = _statusItemBase?.button else {
+    private func present(_ sender: AnyObject?) {
+        guard let statusBarButton = menuBarExtraCoordinator.cocoaStatusItem.button else {
             return
         }
+        
+        NSApp.activate(ignoringOtherApps: true)
+        
+        animates = false
         
         show(
             relativeTo: statusBarButton.bounds,
             of: statusBarButton,
             preferredEdge: NSRectEdge.maxY
         )
-    }
-    
-    @objc func togglePopover(sender: AnyObject?) {
-        if isShown {
-            performClose(sender)
-        } else {
-            present(sender)
-        }
-    }
-    
-    deinit {
-        _ = Unmanaged.passUnretained(self).retain() // fixes a crash
         
-        if let item = _statusItemBase {
-            item.statusBar?.removeStatusItem(item)
-        }
+        animates = true
+        
+        isActive?.wrappedValue = true
+    }
+    
+    private func hide(_ sender: AnyObject?) {
+        performClose(nil)
+        
+        isActive?.wrappedValue = false
     }
 }
 

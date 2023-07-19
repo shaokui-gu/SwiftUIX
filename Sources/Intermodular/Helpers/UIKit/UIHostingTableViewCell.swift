@@ -101,7 +101,7 @@ extension UIHostingTableViewCell {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension UIHostingTableViewCell {
     struct RootView: View {
@@ -116,11 +116,19 @@ extension UIHostingTableViewCell {
                 return parentViewController.view.convert(base.frame, to: coordinateSpace)
             }
             
-            func invalidateLayout() {
+            func invalidateLayout(with context: CellProxy.InvalidationContext) {
                 fatalError("unimplemented")
             }
             
-            func performWithAnimation(_ action: () -> ()) {
+            func select() {
+                base?.isSelected = true
+            }
+            
+            func deselect() {
+                base?.isSelected = false
+            }
+
+            private func performWithAnimation(_ action: () -> ()) {
                 base?.tableViewController.tableView.beginUpdates()
                 action()
                 base?.tableViewController.tableView.endUpdates()
@@ -150,7 +158,7 @@ extension UIHostingTableViewCell {
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 extension String {
     static let hostingTableViewCellIdentifier = "UIHostingTableViewCell"

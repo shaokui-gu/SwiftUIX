@@ -5,41 +5,60 @@
 import Swift
 import SwiftUI
 
+public protocol _CustomOptionalDimensionsConvertible {
+    func _toOptionalDimensions() -> OptionalDimensions
+}
+
 @_frozen
 public struct OptionalDimensions: ExpressibleByNilLiteral, Hashable {
     public var width: CGFloat?
     public var height: CGFloat?
     
-    @inlinable
     public init(width: CGFloat?, height: CGFloat?) {
         self.width = width
         self.height = height
     }
     
-    @inlinable
-    public init(_ size: CGSize) {
-        self.init(width: size.width, height: size.height)
+    public init<T: _CustomOptionalDimensionsConvertible>(_ size: T) {
+        self = size._toOptionalDimensions()
     }
     
-    @inlinable
-    public init(_ size: CGSize?) {
+    public init<T: _CustomOptionalDimensionsConvertible>(_ size: T?) {
         if let size = size {
             self.init(size)
         } else {
             self.init(nilLiteral: ())
         }
     }
-    
-    @inlinable
+
     public init(nilLiteral: ()) {
         self.init(width: nil, height: nil)
     }
-    
-    @inlinable
+        
     public init() {
         
     }
 }
+
+// MARK: - Extensions
+
+#if os(iOS) || os(tvOS)
+extension OptionalDimensions {
+    init(intrinsicContentSize: CGSize) {
+        self.init(
+            width: (intrinsicContentSize.width == UIView.noIntrinsicMetric || intrinsicContentSize.width == CGFloat.greatestFiniteMagnitude) ? nil : intrinsicContentSize.width,
+            height: (intrinsicContentSize.height == UIView.noIntrinsicMetric || intrinsicContentSize.height == CGFloat.greatestFiniteMagnitude) ? nil : intrinsicContentSize.height
+        )
+    }
+    
+    func toAppKitOrUIKitIntrinsicContentSize() -> CGSize {
+        CGSize(
+            width: width ?? UIView.noIntrinsicMetric,
+            height: height ?? UIView.noIntrinsicMetric
+        )
+    }
+}
+#endif
 
 extension OptionalDimensions {
     public func rounded(_ rule: FloatingPointRoundingRule) -> Self {
@@ -67,7 +86,11 @@ extension OptionalDimensions {
         }
     }
     
-    public func clamping(to dimensions: OptionalDimensions) -> Self {
+    public func clamped(to dimensions: OptionalDimensions?) -> Self {
+        guard let dimensions = dimensions else {
+            return self
+        }
+
         var result = self
         
         result.clamp(to: dimensions)
@@ -83,7 +106,7 @@ extension OptionalDimensions {
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension View {
     /// Sets the preferred maximum layout width for the view.
@@ -111,7 +134,26 @@ extension View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
+
+extension CGSize: _CustomOptionalDimensionsConvertible {
+    public func _toOptionalDimensions() -> OptionalDimensions {
+        .init(width: width, height: height)
+    }
+}
+
+extension OptionalDimensions: _CustomOptionalDimensionsConvertible {
+    public func _toOptionalDimensions() -> OptionalDimensions {
+        self
+    }
+}
+
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+extension ProposedViewSize: _CustomOptionalDimensionsConvertible {
+    public func _toOptionalDimensions() -> OptionalDimensions {
+        .init(width: width, height: height)
+    }
+}
 
 extension EnvironmentValues {
     private final class PreferredMaximumLayoutWidth: DefaultEnvironmentKey<CGFloat> {
@@ -156,8 +198,6 @@ extension EnvironmentValues {
         }
     }
 }
-
-// MARK: - Helpers -
 
 extension CGSize {
     public init(_ dimensions: OptionalDimensions, default: CGSize) {

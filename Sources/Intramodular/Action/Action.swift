@@ -29,6 +29,10 @@ public struct Action: DynamicAction, Hashable, Identifiable {
     public func perform() {
         value()
     }
+    
+    public func callAsFunction() {
+        perform()
+    }
 }
 
 extension Action {
@@ -63,7 +67,7 @@ extension Action {
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension Action {
     public static let empty = Action {
@@ -87,7 +91,10 @@ public struct PerformAction: ActionInitiable, PerformActionView {
             self.action.perform()
         }
         
-        return ZeroSizeView().frameZeroClipped()
+        return ZeroSizeView()
+            .frameZeroClipped()
+            .allowsHitTesting(false)
+            .accessibility(hidden: true)
     }
     
     public func transformAction(_ transform: (Action) -> Action) -> Self {

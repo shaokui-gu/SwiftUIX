@@ -5,7 +5,7 @@
 import Swift
 import SwiftUI
 
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 
 protocol _opaque_UIHostingScrollView: UIScrollView {
     func scrollTo(_ edge: Edge)
@@ -44,12 +44,12 @@ open class UIHostingScrollView<Content: View>: UIScrollView, _opaque_UIHostingSc
             hostingContentView.rootView.content
         } set {
             hostingContentView.rootView.content = newValue
-            
-            update()
+
+            setNeedsLayout()
         }
     }
     
-    public var configuration = CocoaScrollViewConfiguration<Content>() {
+    public var configuration: CocoaScrollViewConfiguration<Content> = nil {
         didSet {
             configure(with: configuration)
         }
@@ -86,15 +86,15 @@ open class UIHostingScrollView<Content: View>: UIScrollView, _opaque_UIHostingSc
     public func contentOffset(forPageIndex pageIndex: Int) -> CGPoint {
         .zero
     }
-    
+
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+
+        update()
+    }
+
     private func update() {
         guard !frame.size.isAreaZero else {
-            DispatchQueue.main.async {
-                if !self.frame.size.isAreaZero {
-                    self.update()
-                }
-            }
-            
             return
         }
         
@@ -135,8 +135,7 @@ open class UIHostingScrollView<Content: View>: UIScrollView, _opaque_UIHostingSc
 
         hostingContentView.setNeedsDisplay()
         hostingContentView.setNeedsLayout()
-        hostingContentView.layoutIfNeeded()
-                
+
         if configuration.axes == .vertical {
             if contentHuggingPriority(for: .horizontal) != .defaultHigh {
                 setContentHuggingPriority(.defaultHigh, for: .horizontal)
@@ -155,10 +154,6 @@ open class UIHostingScrollView<Content: View>: UIScrollView, _opaque_UIHostingSc
             }
         }
         
-        if configuration.axes == .horizontal || configuration.axes == .vertical {
-            invalidateIntrinsicContentSize()
-        }
-                
         if let initialContentAlignment = configuration.initialContentAlignment {
             if !isInitialContentAlignmentSet {
                 if contentSize != .zero && frame.size != .zero {
@@ -190,7 +185,7 @@ open class UIHostingScrollView<Content: View>: UIScrollView, _opaque_UIHostingSc
         }
     }
     
-    // MARK: - UIScrollViewDelegate -
+    // MARK: - UIScrollViewDelegate 
     
     public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         guard !_isUpdating else {
@@ -251,9 +246,13 @@ open class UIHostingScrollView<Content: View>: UIScrollView, _opaque_UIHostingSc
             targetContentOffset.pointee = contentOffset(forPageIndex: targetIndex)
         }
     }
+    
+    public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        configuration.onDragEnd?()
+    }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension UIHostingScrollView {
     struct RootViewContainer: View {
@@ -264,9 +263,10 @@ extension UIHostingScrollView {
         var body: some View {
             PassthroughView {
                 if base?._isPagingEnabled ?? false {
-                    content.onPreferenceChange(ArrayReducePreferenceKey<_CocoaScrollViewPage>.self, perform: { page in
-                        self.base?.pages = page
-                    })
+                    content
+                        .onPreferenceChange(ArrayReducePreferenceKey<_CocoaScrollViewPage>.self, perform: { page in
+                            self.base?.pages = page
+                        })
                 } else {
                     content
                 }
@@ -275,7 +275,7 @@ extension UIHostingScrollView {
     }
 }
 
-// MARK: - Conformances -
+// MARK: - Conformances
 
 extension UIHostingScrollView {
     public func scrollTo(_ edge: Edge) {

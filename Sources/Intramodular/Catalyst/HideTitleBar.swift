@@ -6,27 +6,38 @@ import Swift
 import SwiftUI
 
 fileprivate struct HideTitleBar: ViewModifier {
-    #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-    @Environment(\._appKitOrUIKitWindowScene) var _appKitOrUIKitWindowScene
-    #endif
-    
     let isHidden: Bool
     
     func body(content: Content) -> some View {
-        #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-        return content
-            .onAppear(perform: { updateTitlebar(windowScene: _appKitOrUIKitWindowScene) })
-            .onChange(of: _appKitOrUIKitWindowScene, perform: { updateTitlebar(windowScene: $0) })
-            .onChange(of: isHidden, perform: { _ in updateTitlebar(windowScene: _appKitOrUIKitWindowScene) })
+        #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
+        withAppKitOrUIKitViewController { viewController in
+            content
+                .onAppear(perform: { updateTitlebar(for: viewController) })
+                .onChange(of: viewController, perform: { updateTitlebar(for: $0) })
+                .onChange(of: isHidden, perform: { _ in updateTitlebar(for: viewController) })
+        }
+        .preference(key: _SwiftUIX_WindowPreferenceKeys.TitleBarIsHidden.self, value: isHidden)
         #else
         return content
         #endif
     }
     
-    #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-    private func updateTitlebar(windowScene: UIWindowScene?) {
-        #if targetEnvironment(macCatalyst)
-        guard let windowScene = windowScene else {
+    #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
+    private func updateTitlebar(for viewController: AppKitOrUIKitViewController?) {
+        #if os(macOS)
+        guard let window = viewController?.view.window else {
+            return
+        }
+
+        if isHidden {
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+        } else {
+            window.titlebarAppearsTransparent = false
+            window.titleVisibility = .visible
+        }
+        #elseif targetEnvironment(macCatalyst)
+        guard let windowScene = viewController?.view.window?.windowScene else {
             return
         }
         
@@ -42,16 +53,14 @@ fileprivate struct HideTitleBar: ViewModifier {
     #endif
 }
 
+// MARK: - API
+
 extension View {
     /// Hides the title bar (if any) for this view.
     ///
     /// See https://developer.apple.com/documentation/uikit/mac_catalyst/removing_the_title_bar_in_your_mac_app_built_with_mac_catalyst for more details.
     @available(watchOS, unavailable)
     public func titleBarHidden(_ hidden: Bool) -> some View {
-        #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
-        return modifier(HideTitleBar(isHidden: hidden)).modifier(_ResolveAppKitOrUIKitViewController())
-        #else
-        return self
-        #endif
+        modifier(HideTitleBar(isHidden: hidden))._resolveAppKitOrUIKitViewControllerIfAvailable()
     }
 }

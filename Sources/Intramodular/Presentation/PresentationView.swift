@@ -8,26 +8,22 @@ import SwiftUI
 ///
 /// Like `NavigationView`, but for modal presentation.
 public struct PresentationView<Content: View>: View {
-    @State var presenter: DynamicViewPresenter?
-    
     private let content: Content
-    
+
+    @State private var presenter: DynamicViewPresenter?
+
     public init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
     
     public var body: some View {
-        #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+        #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
         content
             .environment(\.presenter, presenter)
-            .modifier(_ResolveAppKitOrUIKitViewController())
+            ._resolveAppKitOrUIKitViewControllerIfAvailable()
             .onAppKitOrUIKitViewControllerResolution {
                 self.presenter = $0
             }
-        #elseif os(macOS)
-        content
-            .environment(\.presenter, presenter)
-            .modifier(_ResolveAppKitOrUIKitViewController())
         #else
         content
         #endif

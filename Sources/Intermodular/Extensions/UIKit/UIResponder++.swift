@@ -17,66 +17,57 @@ extension UIResponder {
     }
 }
 
-extension UIResponder {
-    private static weak var _firstResponder: UIResponder?
-    
-    @available(macCatalystApplicationExtension, unavailable)
-    @available(iOSApplicationExtension, unavailable)
-    @available(tvOSApplicationExtension, unavailable)
-    static var firstResponder: UIResponder? {
-        _firstResponder = nil
-        
-        UIApplication.shared.sendAction(#selector(UIResponder.acquireFirstResponder(_:)), to: nil, from: nil, for: nil)
-        
-        return _firstResponder
-    }
-    
-    @objc private func acquireFirstResponder(_ sender: Any) {
-        UIResponder._firstResponder = self
-    }
-}
-
-extension UIResponder {
-    open func nearestResponder<Responder: UIResponder>(ofKind kind: Responder.Type) -> Responder? {
+extension AppKitOrUIKitResponder {
+    public func _nearestResponder<Responder: UIResponder>(ofKind kind: Responder.Type) -> Responder? {
         guard !isKind(of: kind) else {
             return (self as! Responder)
         }
         
-        return next?.nearestResponder(ofKind: kind)
+        return next?._nearestResponder(ofKind: kind)
     }
     
-    private func furthestResponder<Responder: UIResponder>(ofKind kind: Responder.Type, default _default: Responder?) -> Responder? {
-        return next?.furthestResponder(ofKind: kind, default: self as? Responder) ?? _default
+    private func _furthestResponder<Responder: UIResponder>(ofKind kind: Responder.Type, default _default: Responder?) -> Responder? {
+        return next?._furthestResponder(ofKind: kind, default: self as? Responder) ?? _default
     }
     
-    open func furthestResponder<Responder: UIResponder>(ofKind kind: Responder.Type) -> Responder? {
-        return furthestResponder(ofKind: kind, default: nil)
+    public func _furthestResponder<Responder: UIResponder>(ofKind kind: Responder.Type) -> Responder? {
+        return _furthestResponder(ofKind: kind, default: nil)
     }
     
-    open func forEach<Responder: UIResponder>(ofKind kind: Responder.Type, recursive iterator: (Responder) throws -> ()) rethrows {
+    public func forEach<Responder: UIResponder>(ofKind kind: Responder.Type, recursive iterator: (Responder) throws -> ()) rethrows {
         if isKind(of: kind) {
             try iterator(self as! Responder)
         }
         
         try next?.forEach(ofKind: kind, recursive: iterator)
     }
+    
+    func _decomposeChildViewControllers() -> [UIViewController] {
+        if let responder = self as? UINavigationController {
+            return responder.children
+        } else if let responder = self as? UISplitViewController {
+            return responder.children
+        } else {
+            return []
+        }
+    }
 }
 
 extension UIResponder {
     @objc open var nearestViewController: UIViewController? {
-        nearestResponder(ofKind: UIViewController.self)
+        _nearestResponder(ofKind: UIViewController.self)
     }
     
     @objc open var furthestViewController: UIViewController? {
-        furthestResponder(ofKind: UIViewController.self)
+        _furthestResponder(ofKind: UIViewController.self)
     }
     
     @objc open var nearestNavigationController: UINavigationController? {
-        nearestResponder(ofKind: UINavigationController.self)
+        _nearestResponder(ofKind: UINavigationController.self)
     }
     
     @objc open var furthestNavigationController: UINavigationController? {
-        furthestResponder(ofKind: UINavigationController.self)
+        _furthestResponder(ofKind: UINavigationController.self)
     }
 }
 

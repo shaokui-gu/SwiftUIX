@@ -1,4 +1,4 @@
-<img align=top src="https://raw.githubusercontent.com/SwiftUIX/SwiftUIX/master/Assets/logo.png" width="36" height="36"> SwiftUIX: An extension to the standard SwiftUI library.
+<img align=top src="https://raw.githubusercontent.com/SwiftUIX/SwiftUIX/master/Assets/logo.png" width="36" height="36"> SwiftUIX
 ======================================
 
 ![CI](https://github.com/SwiftUIX/SwiftUIX/workflows/CI/badge.svg)
@@ -20,9 +20,8 @@ The goal of this project is to **complement** the SwiftUI standard library, offe
 
 # Requirements 
 
-- iOS 13, macOS 10.15, tvOS 13, or watchOS 6 
-- Swift 5.3
-- Xcode 12.4+
+- Deployment target: iOS 13, macOS 10.15, tvOS 13, or watchOS 6
+- Xcode 14+
 
 # Installation
 

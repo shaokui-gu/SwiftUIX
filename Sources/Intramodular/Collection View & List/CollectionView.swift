@@ -6,22 +6,26 @@ import Combine
 import Swift
 import SwiftUI
 
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 
 public struct CollectionView: View {
     public typealias Offset = ScrollView<AnyView>.ContentOffset
     
     private let internalBody: AnyView
     
-    private var _collectionViewConfiguration = _CollectionViewConfiguration()
+    private var _collectionViewConfiguration: _CollectionViewConfiguration = nil
     private var _dynamicViewContentTraitValues = _DynamicViewContentTraitValues()
-    private var _scrollViewConfiguration = CocoaScrollViewConfiguration<AnyView>()
-    
+    private var _scrollViewConfiguration: CocoaScrollViewConfiguration<AnyView> = nil
+    private var collectionViewLayout: CollectionViewLayout?
+
     public var body: some View {
         internalBody
             .environment(\._collectionViewConfiguration, _collectionViewConfiguration)
             .environment(\._dynamicViewContentTraitValues, _dynamicViewContentTraitValues)
             .environment(\._scrollViewConfiguration, _scrollViewConfiguration)
+            .transformEnvironment(\.collectionViewLayout, transform: { layout in
+                layout = collectionViewLayout ?? layout
+            })
     }
     
     fileprivate init(internalBody: AnyView) {
@@ -52,7 +56,7 @@ extension CollectionView {
     ) where Data.Element: Identifiable {
         self.init(
             internalBody: _CollectionView(
-                CollectionOfOne(ListSection(0, items: data.lazy.map(_IdentifierHashedValue.init))),
+                CollectionOfOne(ListSection<Int, _IdentifierHashedValue<Data.Element>>(0, items: data.lazy.map(_IdentifierHashedValue.init))),
                 sectionHeader: Never.produce,
                 sectionFooter: Never.produce,
                 rowContent: { rowContent($1.value) }
@@ -60,7 +64,26 @@ extension CollectionView {
             .eraseToAnyView()
         )
     }
-    
+
+    public init<Data: RandomAccessCollection, Header: View, RowContent: View, Footer: View>(
+        _ data: Data,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent,
+        @ViewBuilder header: @escaping () -> Header,
+        @ViewBuilder footer: @escaping () -> Footer
+    ) where Data.Element: Identifiable {
+        self.init(
+            internalBody: _CollectionView(
+                CollectionOfOne(
+                    ListSection(0, items: data.lazy.map(_IdentifierHashedValue.init))
+                ),
+                sectionHeader: { _ in header() },
+                sectionFooter: { _ in footer() },
+                rowContent: { rowContent($1.value) }
+            )
+            .eraseToAnyView()
+        )
+    }
+
     public init<Data: RandomAccessCollection, ID: Hashable, RowContent: View>(
         _ data: Data,
         id: KeyPath<Data.Element, ID>,
@@ -68,7 +91,14 @@ extension CollectionView {
     ) {
         self.init(
             internalBody: _CollectionView(
-                CollectionOfOne(ListSection(0, items: data.lazy.map({ _IdentifierHashedValue(KeyPathHashIdentifiableValue(value: $0, keyPath: id)) }))),
+                CollectionOfOne(
+                    ListSection(
+                        0,
+                        items: data.lazy.map {
+                            _IdentifierHashedValue(_KeyPathHashIdentifiableValue(value: $0, keyPath: id))
+                        }
+                    )
+                ),
                 sectionHeader: Never.produce,
                 sectionFooter: Never.produce,
                 rowContent: { rowContent($1.value.value) }
@@ -111,7 +141,7 @@ extension CollectionView {
         RowContent: View,
         Footer: View
     >(
-        _ data: Data,
+        sections data: Data,
         id: KeyPath<Data.Element, ID>,
         @ViewBuilder rowContent: @escaping (Data.Element) -> Section<Header, ForEach<Items, Items.Element.ID, RowContent>, Footer>
     ) where Items.Element: Identifiable {
@@ -120,7 +150,7 @@ extension CollectionView {
                 data.map { section in
                     ListSection(
                         model: _IdentifierHashedValue(
-                            KeyPathHashIdentifiableValue(
+                            _KeyPathHashIdentifiableValue(
                                 value: section,
                                 keyPath: id
                             )
@@ -143,6 +173,39 @@ extension CollectionView {
             .eraseToAnyView()
         )
     }
+
+    public init<
+        Data: RandomAccessCollection,
+        ID: Hashable,
+        Items: RandomAccessCollection,
+        Header: View,
+        RowContent: View,
+        Footer: View
+    >(
+        _ axes: Axis.Set,
+        _ data: Data,
+        id: KeyPath<Data.Element, ID>,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> Section<Header, ForEach<Items, Items.Element.ID, RowContent>, Footer>
+    ) where Items.Element: Identifiable {
+        self.init(sections: data, id: id, rowContent: rowContent)
+        
+        _scrollViewConfiguration.axes = axes
+    }
+    
+    public init<
+        Data: RandomAccessCollection,
+        ID: Hashable,
+        Items: RandomAccessCollection,
+        Header: View,
+        RowContent: View,
+        Footer: View
+    >(
+        _ data: Data,
+        id: KeyPath<Data.Element, ID>,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> Section<Header, ForEach<Items, Items.Element.ID, RowContent>, Footer>
+    ) where Items.Element: Identifiable {
+        self.init(sections: data, id: id, rowContent: rowContent)
+    }
     
     @_disfavoredOverload
     public init<
@@ -162,13 +225,13 @@ extension CollectionView {
                 data.map { section in
                     ListSection(
                         model: _IdentifierHashedValue(
-                            KeyPathHashIdentifiableValue(
+                            _KeyPathHashIdentifiableValue(
                                 value: section,
                                 keyPath: id
                             )
                         ),
                         items: rowContent(section).content.data.map { item in
-                            _CollectionViewSectionedItem(item: KeyPathHashIdentifiableValue(value: item, keyPath: \.self), section: section[keyPath: id])
+                            _CollectionViewSectionedItem(item: _KeyPathHashIdentifiableValue(value: item, keyPath: \.self), section: section[keyPath: id])
                         }
                     )
                 },
@@ -203,14 +266,14 @@ extension CollectionView {
                 data.map { section in
                     ListSection(
                         model: _IdentifierHashedValue(
-                            KeyPathHashIdentifiableValue(
+                            _KeyPathHashIdentifiableValue(
                                 value: section,
                                 keyPath: id
                             )
                         ),
                         items: rowContent(section).content.data.map { item in
                             _CollectionViewSectionedItem(
-                                item: KeyPathHashIdentifiableValue(value: item, keyPath: \.hashValue),
+                                item: _KeyPathHashIdentifiableValue(value: item, keyPath: \.hashValue),
                                 section: section[keyPath: id]
                             )
                         }
@@ -231,9 +294,13 @@ extension CollectionView {
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension CollectionView {
+    public func collectionViewLayout(_ layout: CollectionViewLayout) -> CollectionView {
+        then({ $0.collectionViewLayout = layout })
+    }
+
     public func updateOnChange<T: Hashable>(of value: T) -> Self {
         then({ $0._collectionViewConfiguration.dataSourceUpdateToken = value })
     }
@@ -241,14 +308,12 @@ extension CollectionView {
 
 extension CollectionView {
     /// Set unsafe flags for the collection view.
-    public func unsafeFlags(_ flags: _CollectionViewConfiguration.UnsafeFlags) -> Self {
+    public func unsafeFlags(
+        _ flags: Set<_CollectionViewConfiguration.UnsafeFlag>
+    ) -> Self {
         then({ $0._collectionViewConfiguration.unsafeFlags.formUnion(flags) })
     }
-    
-    public func _ignorePreferredCellLayoutAttributes() -> Self {
-        then({ $0._collectionViewConfiguration.unsafeFlags.formUnion(.ignorePreferredCellLayoutAttributes) })
-    }
-    
+        
     /// Fixes this view at its ideal size.
     public func fixedSize() -> Self {
         then({ $0._collectionViewConfiguration.fixedSize = (true, true) })
@@ -352,6 +417,10 @@ extension CollectionView {
         then({ $0._scrollViewConfiguration.onOffsetChange = body })
     }
     
+    public func onDragEnd(perform action: @escaping () -> Void) -> Self {
+        then({ $0._scrollViewConfiguration.onDragEnd = action })
+    }
+    
     /// Sets whether the collection view animates differences in the data source.
     public func disableAnimatingDifferences(_ disableAnimatingDifferences: Bool) -> Self {
         then({ $0._collectionViewConfiguration.disableAnimatingDifferences = disableAnimatingDifferences })
@@ -405,7 +474,7 @@ extension CollectionView {
 
 #endif
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 struct _CollectionViewSectionedItem<Item: Identifiable, SectionID: Hashable>: Hashable, Identifiable {
     let item: Item

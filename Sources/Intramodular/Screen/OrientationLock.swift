@@ -52,15 +52,14 @@ private struct _OrientationLockView<Content: View>: UIViewControllerRepresentabl
         }
         
         override func viewDidDisappear(_ animated: Bool) {
-            super.viewDidAppear(animated)
+            super.viewDidDisappear(animated)
         }
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension View {
-    @available(iOS 3.0, *)
     @available(OSX, unavailable)
     @available(tvOS, unavailable)
     @available(watchOS, unavailable)

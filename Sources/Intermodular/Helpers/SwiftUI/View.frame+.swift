@@ -12,7 +12,7 @@ extension View {
         _ size: _GreedyFrameSize,
         alignment: Alignment = .center
     ) -> some View {
-        modifier(GreedyFrameModifer(width: .greedy, height: .greedy, alignment: alignment))
+        modifier(GreedyFrameModifier(width: .greedy, height: .greedy, alignment: alignment))
     }
     
     @inlinable
@@ -20,7 +20,7 @@ extension View {
         width: _GreedyFrameSize,
         alignment: Alignment = .center
     ) -> some View {
-        modifier(GreedyFrameModifer(width: .greedy, height: nil, alignment: alignment))
+        modifier(GreedyFrameModifier(width: .greedy, height: nil, alignment: alignment))
     }
     
     @inlinable
@@ -29,7 +29,7 @@ extension View {
         height: CGFloat?,
         alignment: Alignment = .center
     ) -> some View {
-        modifier(GreedyFrameModifer(width: .greedy, height: height.map({ .fixed($0) }), alignment: alignment))
+        modifier(GreedyFrameModifier(width: .greedy, height: height.map({ .fixed($0) }), alignment: alignment))
     }
     
     @inlinable
@@ -38,7 +38,7 @@ extension View {
         height: _GreedyFrameSize,
         alignment: Alignment = .center
     ) -> some View {
-        modifier(GreedyFrameModifer(width: width.map({ .fixed($0) }), height: .greedy, alignment: alignment))
+        modifier(GreedyFrameModifier(width: width.map({ .fixed($0) }), height: .greedy, alignment: alignment))
     }
     
     @inlinable
@@ -46,7 +46,7 @@ extension View {
         height: _GreedyFrameSize,
         alignment: Alignment = .center
     ) -> some View {
-        modifier(GreedyFrameModifer(width: nil, height: .greedy, alignment: alignment))
+        modifier(GreedyFrameModifier(width: nil, height: .greedy, alignment: alignment))
     }
     
     @inlinable
@@ -57,9 +57,9 @@ extension View {
     ) -> some View {
         switch axis {
             case .horizontal:
-                return modifier(GreedyFrameModifer(width: .greedy, height: nil, alignment: alignment))
+                return modifier(GreedyFrameModifier(width: .greedy, height: nil, alignment: alignment))
             case .vertical:
-                return modifier(GreedyFrameModifer(width: nil, height: .greedy, alignment: alignment))
+                return modifier(GreedyFrameModifier(width: nil, height: .greedy, alignment: alignment))
         }
     }
     
@@ -196,6 +196,23 @@ extension View {
             alignment: alignment
         )
     }
+    
+    @_disfavoredOverload
+    public func frame(
+        width: ClosedRange<CGFloat>? = nil,
+        idealWidth: CGFloat? = nil,
+        height: ClosedRange<CGFloat>? = nil,
+        idealHeight: CGFloat? = nil
+    ) -> some View {
+        frame(
+            minWidth: width?.lowerBound,
+            idealWidth: idealWidth,
+            maxWidth: width?.upperBound,
+            minHeight: height?.lowerBound,
+            idealHeight: idealHeight,
+            maxHeight: height?.upperBound
+        )
+    }
 }
 
 extension View {
@@ -258,8 +275,8 @@ extension View {
 
 extension View {
     @inlinable
-    public func squareFrame(sideLength: CGFloat?) -> some View {
-        frame(width: sideLength, height: sideLength)
+    public func squareFrame(sideLength: CGFloat?, alignment: Alignment = .center) -> some View {
+        frame(width: sideLength, height: sideLength, alignment: alignment)
     }
     
     @inlinable
@@ -278,7 +295,7 @@ extension View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 @usableFromInline
 protocol _opaque_FrameModifier {
@@ -296,7 +313,7 @@ public enum _GreedyFrameSize {
 }
 
 @usableFromInline
-struct GreedyFrameModifer: _opaque_FrameModifier, ViewModifier {
+struct GreedyFrameModifier: _opaque_FrameModifier, ViewModifier {
     @_frozen
     @usableFromInline
     enum Dimension {
@@ -360,7 +377,7 @@ extension OptionalDimensions {
     fileprivate static var greatestFiniteDimensions: OptionalDimensions {
         .init(width: .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
     }
-
+    
     fileprivate static var infinite: OptionalDimensions {
         .init(width: .infinity, height: .infinity)
     }
@@ -388,5 +405,68 @@ extension View {
         in dimensions: CGSize
     ) -> OptionalDimensions? {
         _precomputedDimensionsThatFit(in: .init(dimensions))
+    }
+}
+
+extension View {
+    public func _minFrameReference<T: View>(
+        _ view: T
+    ) -> some View {
+        ZStack {
+            view
+                .hidden()
+                .accessibility(hidden: true)
+            
+            self
+        }
+    }
+    
+    public func _minFrameReference<T: View>(
+        @ViewBuilder _ view: () -> T
+    ) -> some View {
+        _minFrameReference(view())
+    }
+}
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+fileprivate struct _AdhereToReferenceFrame<Reference: View>: ViewModifier {
+    private enum Subviews {
+        case reference
+        case content
+    }
+
+    let dimensions: Set<FrameDimensionType>
+    let reference: Reference
+        
+    func body(content: Content) -> some View {
+        FrameReader { proxy in
+            ZStack {
+                reference
+                    .hidden()
+                    .frame(id: Subviews.reference)
+                    .frame(
+                        width: !dimensions.contains(.width) ? proxy.size(for: Subviews.content).width : nil,
+                        height: !dimensions.contains(.height) ? proxy.size(for: Subviews.content).height : nil
+                    )
+                    .clipped()
+                
+                content
+                    .frame(id: Subviews.content)
+                    .frame(
+                        width: dimensions.contains(.width) ? proxy.size(for: Subviews.reference).width : nil,
+                        height: dimensions.contains(.height) ? proxy.size(for: Subviews.reference).height : nil
+                    )
+            }
+        }
+    }
+}
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+extension View {
+    public func _referenceFrame<Reference: View>(
+        _ dimensions: Set<FrameDimensionType> = [.width, .height],
+        @ViewBuilder _ reference: () -> Reference
+    ) -> some View {
+        modifier(_AdhereToReferenceFrame(dimensions: dimensions, reference: reference()))
     }
 }

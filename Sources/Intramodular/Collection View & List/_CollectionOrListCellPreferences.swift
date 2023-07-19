@@ -10,9 +10,9 @@ import SwiftUI
 struct _CollectionOrListCellPreferences: Hashable {
     var isClipped = false
     var isFocusable = true
-    var isHighlightable = true
-    var isReorderable = true
-    var isSelectable = true
+    var isHighlightable = false
+    var isReorderable = false
+    var isSelectable = false
 }
 
 extension _CollectionOrListCellPreferences {
@@ -32,7 +32,7 @@ extension View {
             value.isClipped = true
         }
     }
-
+    
     public func cellFocusable(_ focusable: Bool) -> some View {
         transformPreference(_CollectionOrListCellPreferences.PreferenceKey.self) { value in
             value.isFocusable = focusable
@@ -59,7 +59,7 @@ extension View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension EnvironmentValues {
     private struct IsCellFocused: EnvironmentKey {

@@ -7,34 +7,34 @@ import Swift
 import SwiftUI
 
 /// An interface that exposes navigation functionality.
-public protocol Navigator: DynamicViewPresenter {
+public protocol Navigator {
     /// Pushes a view onto the navigation stack.
     func push<V: View>(_ view: V, withAnimation animation: Animation?)
-    
+
     /// Pops the top view from the navigation stack.
     func pop(withAnimation animation: Animation?)
-    
+
     /// Pops the whole navigation stack.
     func popToRoot(withAnimation animation: Animation?)
 }
 
-// MARK: - Extensions -
+// MARK: - Extensions
 
 extension Navigator {
     public func push<V: View>(_ view: V) {
         push(view, withAnimation: .default)
     }
-    
+
     public func pop() {
         pop(withAnimation: .default)
     }
-    
+
     public func popToRoot() {
         popToRoot(withAnimation: .default)
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 extension EnvironmentValues {
     private struct NavigatorEnvironmentKey: EnvironmentKey {
@@ -42,7 +42,12 @@ extension EnvironmentValues {
             return nil
         }
     }
-    
+
+    /// Encapsulated access to a navigation controller, if present.
+    ///
+    /// To resolve this environment value:
+    /// - You must add `._resolveAppKitOrUIKitViewControllerIfAvailable()` _outside_ of the view using this via `@Environment(\.navigator)`. This allows SwiftUIX to introspect, grab and provide the nearest `UINavigationController` at runtime.
+    /// - There must be a navigation view present in the view hierarchy. Without a navigation view, this property will always be `nil`.
     public var navigator: Navigator? {
         get {
             self[NavigatorEnvironmentKey.self]
@@ -52,33 +57,50 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Conformances -
+// MARK: - Conformances
 
 #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
 
-extension UINavigationController: Navigator {
+/// A box for `UINavigationController` that adapts it to a `Navigator`.
+///
+/// This box is required to prevent a retain-cycle when accessing the navigator via `EnvironmentValues`.
+struct _UINavigationControllerNavigatorAdaptorBox: Navigator {
+    weak var navigationController: UINavigationController?
+
     public func push<V: View>(_ view: V, withAnimation animation: Animation?) {
+        guard let navigationController = navigationController else {
+            return assertionFailure()
+        }
+
         if !(animation == nil || animation == .default) {
             assertionFailure("The animation passed to popToRoot(withAnimation:) must either be `.default` or `nil`")
         }
-        
-        pushViewController(CocoaHostingController(mainView: view), animated: animation == .default)
+
+        navigationController.pushViewController(CocoaHostingController(mainView: view), animated: animation == .default)
     }
-    
+
     public func pop(withAnimation animation: Animation?) {
+        guard let navigationController = navigationController else {
+            return assertionFailure()
+        }
+
         if !(animation == nil || animation == .default) {
             assertionFailure("The animation passed to popToRoot(withAnimation:) must either be `.default` or `nil`")
         }
-        
-        popViewController(animated: animation == .default)
+
+        navigationController.popViewController(animated: animation == .default)
     }
-    
+
     public func popToRoot(withAnimation animation: Animation?) {
+        guard let navigationController = navigationController else {
+            return assertionFailure()
+        }
+
         if !(animation == nil || animation == .default) {
             assertionFailure("The animation passed to popToRoot(withAnimation:) must either be `.default` or `nil`")
         }
-        
-        popToRootViewController(animated: animation == .default)
+
+        navigationController.popToRootViewController(animated: animation == .default)
     }
 }
 

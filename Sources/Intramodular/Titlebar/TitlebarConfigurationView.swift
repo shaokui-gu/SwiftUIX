@@ -8,18 +8,28 @@ import AppKit
 import Swift
 import SwiftUI
 
+public enum _WindowToolbarStyle {
+    case automatic
+    case expanded
+    case unified
+    case unifiedCompact
+}
+
 public struct TitlebarConfigurationView<Content: View>: AppKitOrUIKitViewRepresentable {
     public typealias AppKitOrUIKitViewType = AppKitOrUIKitView
     
     private let content: Content
     private let toolbar: NSToolbar
     
-    public init(identifier: String = UUID().uuidString, content: () -> Content) {
+    public init(
+        identifier: String = UUID().uuidString,
+        content: () -> Content
+    ) {
         self.content = content()
         self.toolbar = NSToolbar(identifier: identifier)
     }
     
-    private class HostingView<Content: View>: AppKitOrUIKitHostingView<Content> {
+    private class HostingView<T: View>: AppKitOrUIKitHostingView<T> {
         weak var toolbar: NSToolbar?
         
         func updateToolbar() {
@@ -31,7 +41,6 @@ public struct TitlebarConfigurationView<Content: View>: AppKitOrUIKitViewReprese
         }
         
         #if os(macOS)
-        
         override open func viewDidMoveToSuperview() {
             super.viewDidMoveToWindow()
             
@@ -43,9 +52,7 @@ public struct TitlebarConfigurationView<Content: View>: AppKitOrUIKitViewReprese
             
             updateToolbar()
         }
-        
         #elseif targetEnvironment(macCatalyst)
-        
         override open func didMoveToSuperview() {
             super.didMoveToSuperview()
             
@@ -57,7 +64,6 @@ public struct TitlebarConfigurationView<Content: View>: AppKitOrUIKitViewReprese
             
             updateToolbar()
         }
-        
         #endif
     }
     

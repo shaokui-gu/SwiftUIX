@@ -35,7 +35,7 @@ public struct ListSection<SectionType, ItemType> {
     
     public init(
         _ model: SectionType,
-        @ArrayBuilder<ItemType> items: () -> [ItemType]
+        @_ArrayBuilder<ItemType> items: () -> [ItemType]
     ) {
         self.init(model, items: items())
     }
@@ -99,7 +99,7 @@ extension ListSection where SectionType: Identifiable, ItemType: Identifiable {
     }
 }
 
-// MARK: - Conformances -
+// MARK: - Conformances
 
 extension ListSection: Equatable where SectionType: Equatable, ItemType: Equatable {
     public static func == (lhs: Self, rhs: Self) -> Bool {
@@ -141,7 +141,7 @@ extension ListSection: Identifiable where SectionType: Identifiable, ItemType: I
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 extension Collection {
     #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)

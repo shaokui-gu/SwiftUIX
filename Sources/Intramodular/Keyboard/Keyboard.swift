@@ -2,7 +2,7 @@
 // Copyright (c) Vatsal Manot
 //
 
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 
 import Combine
 import Swift
@@ -16,12 +16,16 @@ import UIKit
 public final class Keyboard: ObservableObject {
     public static let main = Keyboard()
     
-    @Published public var state: State = .default
+    @Published public private(set) var state: State = .default
     @Published public private(set) var isShown: Bool = false
     
     /// A Boolean value that determines whether the keyboard is showing on-screen.
     public var isShowing: Bool {
         state.height.map({ $0 != 0 }) ?? false
+    }
+    
+    public var isActive: Bool {
+        isShowing || isShown
     }
     
     private var keyboardWillChangeFrameSubscription: AnyCancellable?
@@ -133,41 +137,6 @@ extension Keyboard {
             #else
             return nil
             #endif
-        }
-    }
-}
-
-// MARK: - Helpers -
-
-@available(macCatalystApplicationExtension, unavailable)
-@available(iOSApplicationExtension, unavailable)
-@available(tvOSApplicationExtension, unavailable)
-extension View {
-    public func hiddenIfKeyboardActive() -> some View {
-        withInlineObservedObject(Keyboard.main) { keyboard in
-            self.hidden(keyboard.isShowing)
-        }
-    }
-    
-    public func visibleIfKeyboardActive() -> some View {
-        withInlineObservedObject(Keyboard.main) { keyboard in
-            self.visible(keyboard.isShowing)
-        }
-    }
-    
-    public func removeIfKeyboardActive() -> some View {
-        withInlineObservedObject(Keyboard.main) { keyboard in
-            if !keyboard.isShowing {
-                self
-            }
-        }
-    }
-    
-    public func addIfKeyboardActive() -> some View {
-        withInlineObservedObject(Keyboard.main) { keyboard in
-            if keyboard.isShowing {
-                self
-            }
         }
     }
 }

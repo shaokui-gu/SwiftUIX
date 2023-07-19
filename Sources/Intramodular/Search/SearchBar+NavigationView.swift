@@ -5,7 +5,7 @@
 import Swift
 import SwiftUI
 
-#if os(iOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || targetEnvironment(macCatalyst)
 
 @available(macCatalystApplicationExtension, unavailable)
 @available(iOSApplicationExtension, unavailable)
@@ -165,6 +165,8 @@ extension _NavigationSearchBarConfigurator {
         }
         
         public func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+            self.searchController.isActive = false
+
             searchBarCoordinator.searchBarCancelButtonClicked(searchBar)
         }
         
@@ -217,12 +219,14 @@ extension _NavigationSearchBarConfigurator {
         }
         
         override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            
             coordinator?.uiViewController = navigationController?.viewControllers.first
         }
     }
 }
 
-// MARK: - API -
+// MARK: - API
 
 extension View {
     /// Sets the navigation search bar for this view.
@@ -239,7 +243,7 @@ extension View {
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension EnvironmentValues {
     final class _HidesNavigationSearchBarWhenScrolling: DefaultEnvironmentKey<Bool> {
@@ -255,7 +259,7 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 private extension UIViewController {
     var searchController: UISearchController? {

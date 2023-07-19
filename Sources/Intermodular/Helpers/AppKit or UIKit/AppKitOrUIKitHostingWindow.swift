@@ -7,14 +7,105 @@ import SwiftUI
 
 #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
 
-open class AppKitOrUIKitHostingWindow<Content: View>: AppKitOrUIKitWindow {
-    fileprivate var rootHostingViewController: CocoaHostingController<AppKitOrUIKitHostingWindowContent<Content>> {
-        #if os(macOS)
-        return contentViewController as! CocoaHostingController<AppKitOrUIKitHostingWindowContent<Content>>
-        #else
-        return rootViewController as! CocoaHostingController<AppKitOrUIKitHostingWindowContent<Content>>
-        #endif
+#if os(macOS)
+protocol AppKitOrUIKitHostingWindowProtocol: AppKitOrUIKitWindow, NSWindowDelegate {
+    
+}
+#else
+protocol AppKitOrUIKitHostingWindowProtocol: AppKitOrUIKitWindow {
+    
+}
+#endif
+
+@available(macCatalystApplicationExtension, unavailable)
+@available(iOSApplicationExtension, unavailable)
+@available(tvOSApplicationExtension, unavailable)
+public final class AppKitOrUIKitHostingWindow<Content: View>: AppKitOrUIKitWindow, AppKitOrUIKitHostingWindowProtocol {
+    public struct PreferredConfiguration: Equatable {
+        public var style: _WindowStyle = .default
+        public var canBecomeKey: Bool = true
+        public var allowTouchesToPassThrough: Bool = false
+        public var windowPosition: CGPoint?
+        public var isTitleBarHidden: Bool?
+        public var backgroundColor: Color?
     }
+    
+    /// The window's preferred configuration.
+    ///
+    /// This is informed by SwiftUIX's window preference key values.
+    public var configuration = PreferredConfiguration() {
+        didSet {
+            guard configuration != oldValue else {
+                return
+            }
+            
+            #if os(iOS)
+            if oldValue.windowPosition == nil, configuration.windowPosition != nil {
+                setWindowOrigin()
+            } else {
+                UIView.animate(withDuration: 0.2) {
+                    self.setWindowOrigin()
+                }
+            }
+            #else
+            setWindowOrigin()
+            #endif
+            
+            applyPreferredConfiguration()
+        }
+    }
+    
+    #if os(macOS)
+    var contentWindowController: NSWindowController?
+    #endif
+    
+    /// A copy of the root view for when the `contentViewController` is deinitialized (for macOS windows).
+    fileprivate var copyOfRootView: Content?
+    
+    fileprivate var rootHostingViewController: CocoaHostingController<AppKitOrUIKitHostingWindowContent<Content>>! {
+        get {
+            #if os(macOS)
+            if let contentViewController = contentViewController as? CocoaHostingController<AppKitOrUIKitHostingWindowContent<Content>> {
+                return contentViewController
+            } else {
+                let contentViewController = CocoaHostingController(
+                    mainView: AppKitOrUIKitHostingWindowContent(
+                        windowBox: .init(self),
+                        content: copyOfRootView!
+                    )
+                )
+                
+                copyOfRootView = nil
+                
+                self.contentViewController = contentViewController
+                
+                return contentViewController
+            }
+            #else
+            return rootViewController as? CocoaHostingController<AppKitOrUIKitHostingWindowContent<Content>>
+            #endif
+        } set {
+            if let newValue = newValue {
+                #if os(macOS)
+                contentViewController = newValue
+                #else
+                rootViewController = newValue
+                #endif
+            } else {
+                #if os(macOS)
+                if contentViewController != nil {
+                    copyOfRootView = rootView
+                    
+                    contentViewController = nil
+                }
+                #else
+                fatalError()
+                #endif
+            }
+        }
+    }
+    
+    var isVisibleBinding: Binding<Bool> = .constant(true)
     
     public var rootView: Content {
         get {
@@ -24,107 +115,437 @@ open class AppKitOrUIKitHostingWindow<Content: View>: AppKitOrUIKitWindow {
         }
     }
     
+    #if os(iOS)
+    override public var frame: CGRect {
+        get {
+            super.frame
+        } set {
+            guard newValue != frame else {
+                return
+            }
+            
+            super.frame = newValue
+            
+            setWindowOrigin()
+        }
+    }
+    #endif
+    
+    public func applyPreferredConfiguration() {
+        guard !_NSWindow_didWindowJustClose else {
+            return
+        }
+        
+        setWindowOrigin()
+        
+        #if os(iOS) || os(tvOS)
+        backgroundColor = configuration.backgroundColor?.toAppKitOrUIKitColor()
+        #elseif os(macOS)
+        backgroundColor = configuration.backgroundColor?.toAppKitOrUIKitColor()
+        
+        if configuration.backgroundColor == .clear {
+            hasShadow = false
+            isOpaque = false
+        } else {
+            hasShadow = true
+            isOpaque = true
+        }
+        
+        if (configuration.isTitleBarHidden ?? false) {
+            if styleMask.contains(.titled) {
+                styleMask.remove(.titled)
+            }
+        } else {
+            if !styleMask.contains(.titled) {
+                styleMask.formUnion(.titled)
+            }
+        }
+        
+        if configuration.style == .hiddenTitleBar {
+            _assignIfNotEqual(true, to: &isMovableByWindowBackground)
+            _assignIfNotEqual(true, to: &titlebarAppearsTransparent)
+            _assignIfNotEqual(.hidden, to: &titleVisibility)
+                        
+            standardWindowButton(.miniaturizeButton)?.isHidden = true
+            standardWindowButton(.closeButton)?.isHidden = true
+            standardWindowButton(.zoomButton)?.isHidden = true
+        }
+        
+        #endif
+    }
+    
+    #if os(iOS)
+    override public var isHidden: Bool {
+        didSet {
+            rootHostingViewController.rootView.content.isPresented = !isHidden
+        }
+    }
+    #endif
+    
     #if os(macOS)
+    public convenience init(
+        rootView: Content,
+        style: _WindowStyle
+    ) {
+        let contentViewController = CocoaHostingController(
+            mainView: AppKitOrUIKitHostingWindowContent(
+                windowBox: .init(nil),
+                content: rootView
+            )
+        )
+        
+        switch style {
+            case .`default`:
+                self.init(contentViewController: contentViewController)
+            case .titleBar:
+                self.init(contentViewController: contentViewController)
+            case .hiddenTitleBar:
+                let styleMask: NSWindow.StyleMask = [.titled, .closable, .resizable, .miniaturizable]
+                
+                self.init(
+                    contentRect: .zero,
+                    styleMask: styleMask,
+                    backing: .buffered,
+                    defer: false
+                )
+                
+                contentViewController.title = nil
+                
+                self.contentViewController = contentViewController
+                
+                self.configuration.style = style
+                
+                applyPreferredConfiguration()
+        }
+        
+        performSetUp()
+        
+        delegate = self
+    }
+    
     public convenience init(rootView: Content) {
-        let contentViewController = CocoaHostingController(mainView: AppKitOrUIKitHostingWindowContent(window: nil, content: rootView))
-        
-        self.init(contentViewController: contentViewController)
-        
-        contentViewController.mainView.window = self
+        self.init(rootView: rootView, style: .default)
     }
     #else
     public init(windowScene: UIWindowScene, rootView: Content) {
         super.init(windowScene: windowScene)
         
-        rootViewController = CocoaHostingController(mainView: AppKitOrUIKitHostingWindowContent(window: self, content: rootView))
+        rootViewController = CocoaHostingController(mainView: AppKitOrUIKitHostingWindowContent(windowBox: .init(self), content: rootView))
         rootViewController!.view.backgroundColor = .clear
+        
+        performSetUp()
     }
     
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    #endif
+    
+    private func performSetUp() {
+        #if os(iOS) || os(tvOS)
+        canResizeToFitContent = true
+        #elseif os(macOS)
+        if styleMask.contains(.titled) {
+            title = ""
+        }
+        #endif
+    }
+    
+    #if os(iOS)
+    override public func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard configuration.allowTouchesToPassThrough else {
+            return super.hitTest(point, with: event)
+        }
+        
+        let result = super.hitTest(point, with: event)
+        
+        if result == rootViewController?.view {
+            return nil
+        }
+        
+        return result
+    }
+    
+    override public func makeKey() {
+        guard configuration.canBecomeKey else {
+            return
+        }
+        
+        super.makeKey()
+    }
+    #elseif os(macOS)
+    override public func layoutIfNeeded() {
+        // Needed to fix a crash.
+        // https://developer.apple.com/forums/thread/114579
+        if _NSWindow_didWindowJustClose {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                self._NSWindow_didWindowJustClose = false
+            }
+            
+            return
+        }
+        
+        super.layoutIfNeeded()
+    }
+    #endif
+    
+    // MARK: - API
+    
+    public func show() {
+        #if os(macOS)
+        rootHostingViewController.mainView.windowBox.wrappedValue = self
+        contentWindowController = contentWindowController ?? NSWindowController(window: self)
+        
+        if configuration.windowPosition == nil {
+            alphaValue = 0.0
+            
+            contentWindowController?.showWindow(self)
+            
+            DispatchQueue.main.async {
+                self.center()
+                self.applyPreferredConfiguration()
+                self.alphaValue = 1.0
+            }
+        } else {
+            contentWindowController?.showWindow(self)
+        }
+        #else
+        isHidden = false
+        isUserInteractionEnabled = true
+        
+        makeKeyAndVisible()
+        
+        rootViewController?.view.setNeedsDisplay()
+        #endif
+    }
+    
+    public func hide() {
+        #if os(macOS)
+        rootHostingViewController = nil
+        
+        if let contentWindowController = contentWindowController {
+            contentWindowController.close()
+        } else {
+            close()
+        }
+        
+        tearDownWindow()
+        #else
+        isHidden = true
+        isUserInteractionEnabled = false
+        windowScene = nil
+        #endif
+    }
+    
+    // MARK: - Internal
+    
+    private func setWindowOrigin() {
+        guard let windowPosition = configuration.windowPosition else {
+            return
+        }
+        
+        let originX = (windowPosition.x - (self.frame.size.width / 2))
+        let originY = (windowPosition.y - (self.frame.size.height / 2))
+        
+        #if os(iOS)
+        self.frame.origin = .init(
+            x: originX,
+            y: originY
+        )
+        #elseif os(macOS)
+        setFrameOrigin(.init(x: originX, y: -originY))
+        #endif
+    }
+    
+    // MARK: - NSWindowDelegate
+    
+    var _NSWindow_didWindowJustClose: Bool = false
+    
+    public func windowWillClose(_ notification: Notification) {
+        _NSWindow_didWindowJustClose = true
+        
+        tearDownWindow()
+        
+        DispatchQueue.main.async {
+            self.isVisibleBinding.wrappedValue = false
+        }
+    }
+    
+    private func tearDownWindow() {
+        #if os(macOS)
+        contentWindowController?.window = nil
+        contentWindowController = nil
+        #endif
+    }
+}
+
+#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+@available(macCatalystApplicationExtension, unavailable)
+@available(iOSApplicationExtension, unavailable)
+@available(tvOSApplicationExtension, unavailable)
+extension AppKitOrUIKitHostingWindow {
     public convenience init(
         windowScene: UIWindowScene,
         @ViewBuilder rootView: () -> Content
     ) {
         self.init(windowScene: windowScene, rootView: rootView())
     }
-    
-    public required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    #endif
 }
+#elseif os(macOS)
+@available(macCatalystApplicationExtension, unavailable)
+@available(iOSApplicationExtension, unavailable)
+@available(tvOSApplicationExtension, unavailable)
+extension AppKitOrUIKitHostingWindow {
+    public convenience init(
+        @ViewBuilder rootView: () -> Content
+    ) {
+        self.init(rootView: rootView())
+    }
+}
+#endif
 
-// MARK: - API -
+// MARK: - API
 
+@available(macCatalystApplicationExtension, unavailable)
+@available(iOSApplicationExtension, unavailable)
+@available(tvOSApplicationExtension, unavailable)
 extension View {
-    /// Positions the top-leading corner of this window at the specified coordinates in the screen's coordinate space.
-    ///
-    /// Use the `windowPosition(x:y:)` modifier to place the top-leading corner of a window at a specific coordinate in the screen using `offset`.
-    public func windowPosition(_ offset: CGPoint) -> some View {
-        preference(key: WindowPositionPreferenceKey.self, value: offset)
+    /// Allows touches in the active window overlay to pass through if possible.
+    @available(macOS, unavailable)
+    public func windowAllowsTouchesToPassThrough(_ allowed: Bool) -> some View {
+        preference(key: _SwiftUIX_WindowPreferenceKeys.AllowsTouchesToPassThrough.self, value: allowed)
     }
     
-    /// Positions the top-leading corner of this window at the specified coordinates in the screen's coordinate space.
+    /// Positions the center of this window at the specified coordinates in the screen's coordinate space.
     ///
-    /// Use the `windowPosition(x:y:)` modifier to place the top-leading corner of a window at a specific coordinate in the screen using an `x` and `y` offset.
+    /// Use the `windowPosition(x:y:)` modifier to place the center of a window at a specific coordinate in the screen using `offset`.
+    public func windowPosition(_ offset: CGPoint) -> some View {
+        preference(key: _SwiftUIX_WindowPreferenceKeys.Position.self, value: offset)
+    }
+    
+    /// Positions the center of this window at the specified coordinates in the screen's coordinate space.
+    ///
+    /// Use the `windowPosition(x:y:)` modifier to place the center of a window at a specific coordinate in the screen using an `x` and `y` offset.
     public func windowPosition(x: CGFloat, y: CGFloat) -> some View {
         windowPosition(.init(x: x, y: y))
     }
-}
-
-// MARK: - Auxiliary Implementation -
-
-@usableFromInline
-final class WindowPositionPreferenceKey: TakeLastPreferenceKey<CGPoint> {
     
+    /// Sets the background color of the presented window.
+    public func windowOverlayBackgroundColor(_ backgroundColor: Color) -> some View {
+        preference(key: _SwiftUIX_WindowPreferenceKeys.BackgroundColor.self, value: backgroundColor)
+    }
 }
 
+// MARK: - Auxiliary
+
+enum _SwiftUIX_WindowPreferenceKeys {
+    final class AllowsTouchesToPassThrough: TakeLastPreferenceKey<Bool> {
+        
+    }
+    
+    final class Position: TakeLastPreferenceKey<CGPoint> {
+        
+    }
+    
+    final class TitleBarIsHidden: TakeLastPreferenceKey<Bool> {
+        
+    }
+    
+    final class BackgroundColor: TakeLastPreferenceKey<Color> {
+        
+    }
+}
+
+@available(macCatalystApplicationExtension, unavailable)
+@available(iOSApplicationExtension, unavailable)
+@available(tvOSApplicationExtension, unavailable)
 fileprivate struct AppKitOrUIKitHostingWindowContent<Content: View>: View {
-    @usableFromInline
-    weak var window: AppKitOrUIKitWindow?
+    @ObservedObject var windowBox: ObservableWeakReferenceBox<AppKitOrUIKitHostingWindow<Content>>
     
-    @usableFromInline
     var content: Content
+    var isPresented: Bool = false
     
-    @inlinable
+    @State var queuedWindowUpdates: [(AppKitOrUIKitHostingWindow<Content>) -> Void] = []
+    
+    private var presentationManager: _PresentationManager {
+        _PresentationManager(windowBox: windowBox)
+    }
+    
     public var body: some View {
-        content.onPreferenceChange(WindowPositionPreferenceKey.self) { value in
-            if let window = self.window, let value = value {
-                if window.frame.origin != value {
-                    #if os(macOS)
-                    window.setFrameOrigin(value)
-                    #else
-                    UIView.animate(withDuration: 0.2) {
-                        window.frame.origin = value
-                    }
-                    #endif
+        PassthroughView {
+            if windowBox.wrappedValue != nil {
+                LazyAppearView {
+                    content
+                        /*.modify(if: windowBox.wrappedValue?.configuration.style == .hiddenTitleBar) {
+                            $0.titleBarHidden(true) // setting this lazily fixes actually hiding the title bar
+                        }*/
                 }
             }
         }
-        .environment(\.presentationManager, _PresentationManager(window: window))
+        .environment(\._windowProxy, WindowProxy(window: windowBox.wrappedValue))
+        .onPreferenceChange(_SwiftUIX_WindowPreferenceKeys.AllowsTouchesToPassThrough.self) { allowTouchesToPassThrough in
+            queueWindowUpdate {
+                $0.configuration.allowTouchesToPassThrough = allowTouchesToPassThrough ?? false
+            }
+        }
+        .onPreferenceChange(_SwiftUIX_WindowPreferenceKeys.Position.self) { windowPosition in
+            queueWindowUpdate {
+                $0.configuration.windowPosition = windowPosition
+            }
+        }
+        .onPreferenceChange(_SwiftUIX_WindowPreferenceKeys.TitleBarIsHidden.self) { isTitleBarHidden in
+            queueWindowUpdate {
+                $0.configuration.isTitleBarHidden = isTitleBarHidden
+            }
+        }
+        .onPreferenceChange(_SwiftUIX_WindowPreferenceKeys.BackgroundColor.self) { backgroundColor in
+            queueWindowUpdate {
+                $0.configuration.backgroundColor = backgroundColor
+            }
+        }
+        .environment(\.presentationManager, presentationManager)
+        .id(isPresented)
+        .onChange(of: windowBox.wrappedValue != nil) { isWindowNotNil in
+            if isWindowNotNil {
+                queuedWindowUpdates.forEach({ $0(windowBox.wrappedValue!) })
+                queuedWindowUpdates = []
+            }
+        }
+        .onChangeOfFrame { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
+                windowBox.wrappedValue?.applyPreferredConfiguration()
+            }
+        }
+        .id(windowBox.wrappedValue != nil)
     }
     
-    @usableFromInline
+    func queueWindowUpdate(_ update: @escaping (AppKitOrUIKitHostingWindow<Content>) -> Void) {
+        if let window = windowBox.wrappedValue {
+            update(window)
+        } else {
+            queuedWindowUpdates.append(update)
+        }
+    }
+    
     struct _PresentationManager: PresentationManager {
-        @usableFromInline
-        var window: AppKitOrUIKitWindow?
+        let windowBox: ObservableWeakReferenceBox<AppKitOrUIKitHostingWindow<Content>>
         
-        @usableFromInline
-        init(window: AppKitOrUIKitWindow?) {
-            self.window = window
-        }
-        
-        @usableFromInline
         var isPresented: Bool {
-            window?.isHidden == false
+            (windowBox.wrappedValue?.isHidden ?? false) == true
         }
         
-        @usableFromInline
+        init(windowBox: ObservableWeakReferenceBox<AppKitOrUIKitHostingWindow<Content>>) {
+            self.windowBox = windowBox
+        }
+        
         func dismiss() {
             #if os(macOS)
-            window?.close()
+            windowBox.wrappedValue?.close()
             #else
-            window?.isHidden = true
+            windowBox.wrappedValue?.isHidden = true
             #endif
+            
+            windowBox.wrappedValue?.isVisibleBinding.wrappedValue = false
         }
     }
 }

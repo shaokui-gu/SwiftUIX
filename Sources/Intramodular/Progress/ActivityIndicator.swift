@@ -9,6 +9,7 @@ import SwiftUI
 public struct ActivityIndicator {
     public enum Style {
         #if os(macOS)
+        case mini
         case small
         #endif
         case regular
@@ -29,7 +30,7 @@ public struct ActivityIndicator {
     #endif
     
     #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
-    private var tintUIColor: UIColor?
+    private var tintAppKitOrUIKitColor: AppKitOrUIKitColor?
     #endif
     
     public init() {
@@ -50,9 +51,10 @@ extension ActivityIndicator: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: UIViewType, context: Context) {
-        uiView.color = tintUIColor ?? context.environment.tintColor?.toUIColor()
-        uiView.style = .init(style)
-        uiView.tintColor = tintUIColor ?? context.environment.tintColor?.toUIColor()
+        _assignIfNotEqual(.init(style), to: &uiView.style)
+
+        uiView.color = tintAppKitOrUIKitColor ?? context.environment.tintColor?.toUIColor()
+        uiView.tintColor = tintAppKitOrUIKitColor ?? context.environment.tintColor?.toUIColor()
         
         if !context.environment.isEnabled && uiView.isAnimating {
             uiView.stopAnimating()
@@ -70,8 +72,8 @@ extension ActivityIndicator: UIViewRepresentable {
     }
     
     @_disfavoredOverload
-    public func tintColor(_ color: UIColor?) -> Self {
-        then({ $0.tintUIColor = color })
+    public func tintColor(_ color: AppKitOrUIKitColor?) -> Self {
+        then({ $0.tintAppKitOrUIKitColor = color })
     }
 }
 
@@ -130,7 +132,7 @@ extension ActivityIndicator: NSViewRepresentable {
 
 #endif
 
-// MARK: - API -
+// MARK: - API
 
 #if os(iOS) || os(macOS) || os(tvOS) || targetEnvironment(macCatalyst)
 
@@ -142,11 +144,15 @@ extension ActivityIndicator {
     public func style(_ style: Style) -> Self {
         then({ $0.style = style })
     }
+
+    public func controlSize(_ style: Style) -> Self {
+        then({ $0.style = style })
+    }
 }
 
 #endif
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
 
@@ -166,6 +172,8 @@ extension UIActivityIndicatorView.Style {
 extension NSControl.ControlSize {
     public init(_ style: ActivityIndicator.Style) {
         switch style {
+            case .mini:
+                self = .mini
             case .small:
                 self = .small
             case .regular:

@@ -50,21 +50,11 @@ struct _DragSourceDropDestinationView<
         context.coordinator.base = self
         
         viewController.view.backgroundColor = nil
-        
-        if dragItems != nil {
-            context.coordinator.dragInteraction.isEnabled = true
-            
-            viewController.view.addInteraction(context.coordinator.dragInteraction)
-            
-            if let longPressRecognizer = viewController.view.gestureRecognizers?.compactMap({ $0 as? UILongPressGestureRecognizer}).first {
-                longPressRecognizer.minimumPressDuration = 0
-            }
-        }
-        
+                
         if onDrop != nil {
             viewController.view.addInteraction(context.coordinator.dropInteraction)
         }
-        
+
         return viewController
     }
     
@@ -73,6 +63,20 @@ struct _DragSourceDropDestinationView<
         
         context.coordinator.viewController = viewController
         context.coordinator.base = self
+        
+        if dragItems != nil {
+            context.coordinator.dragInteraction.isEnabled = true
+            
+            if context.coordinator.dragInteraction.view == nil {
+                viewController.view.addInteraction(context.coordinator.dragInteraction)
+            }
+            
+            if let longPressRecognizer = viewController.view.gestureRecognizers?.compactMap({ $0 as? UILongPressGestureRecognizer}).first(where: { NSStringFromClass(type(of: $0)).contains("Drag") }) {
+                if longPressRecognizer.minimumPressDuration != 0 {
+                    longPressRecognizer.minimumPressDuration = 0
+                }
+            }
+        }
     }
     
     class Coordinator: NSObject, UIDragInteractionDelegate, UIDropInteractionDelegate {
@@ -325,7 +329,7 @@ extension View {
     }
 }
 
-// MARK: - Helpers -
+// MARK: - Helpers
 
 extension DragInfo {
 	public init(interaction: UIDragInteraction, session: UIDragSession) {

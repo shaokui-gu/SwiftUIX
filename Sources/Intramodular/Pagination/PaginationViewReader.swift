@@ -2,7 +2,7 @@
 // Copyright (c) Vatsal Manot
 //
 
-#if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+#if (os(iOS) && canImport(CoreTelephony)) || os(tvOS) || targetEnvironment(macCatalyst)
 
 import Swift
 import SwiftUI
@@ -28,6 +28,10 @@ public struct PaginationViewProxy: Hashable {
         }
     }
     
+    public var paginationState: PaginationState {
+        hostingPageViewController?.internalPaginationState ?? .init()
+    }
+    
     public func hash(into hasher: inout Hasher) {
         hasher.combine(hostingPageViewController?.hashValue)
     }
@@ -35,15 +39,15 @@ public struct PaginationViewProxy: Hashable {
     public func scrollTo(_ id: AnyHashable) {
         progressionController.scrollTo(id)
     }
-
+    
     public func moveToPrevious() {
         progressionController.moveToPrevious()
     }
-
+    
     public func moveToNext() {
         progressionController.moveToNext()
     }
-        
+    
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.hostingPageViewController === rhs.hostingPageViewController
     }
@@ -51,25 +55,24 @@ public struct PaginationViewProxy: Hashable {
 
 /// A view whose child is defined as a function of a `PaginationViewProxy` targeting the pagination views within the child.
 public struct PaginationViewReader<Content: View>: View {
-    public let content: (PaginationViewProxy) -> Content
+    private let content: (PaginationViewProxy) -> Content
     
-    @State public var _paginationViewProxy = PaginationViewProxy()
+    @State private var _paginationViewProxy = PaginationViewProxy()
     
-    @inlinable
     public init(
         @ViewBuilder content: @escaping (PaginationViewProxy) -> Content
     ) {
         self.content = content
     }
     
-    @inlinable
     public var body: some View {
         content(_paginationViewProxy)
             .environment(\._paginationViewProxy, $_paginationViewProxy)
+            .background(EmptyView().id(_paginationViewProxy.paginationState))
     }
 }
 
-// MARK: - Auxiliary Implementation -
+// MARK: - Auxiliary
 
 extension PaginationViewProxy {
     fileprivate struct EnvironmentKey: SwiftUI.EnvironmentKey {
